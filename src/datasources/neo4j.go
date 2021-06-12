@@ -1,7 +1,7 @@
 package datasources
 
 import (
-	"github.com/neo4j/neo4j-go-driver/v4/neo4j"
+	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
 func ConnectNeo4j(uri string, username string, password string) (neo4j.Driver, error) {
