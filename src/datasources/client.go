@@ -73,7 +73,7 @@ func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, 
 	query := `
 		MATCH (n) 
 		WHERE (n:Student OR n:Teacher) AND n.token = $token 
-		RETURN n.ID AS userID, label(n) AS type
+		RETURN n.ID AS userID, labels(n) AS type
 	`
 	tokenQueryResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		records, err := tx.Run(query, map[string]interface{}{"token": token})
@@ -89,12 +89,12 @@ func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, 
 			}
 			resultType, ok := record.Get("type")
 			if !ok {
-				return repositories.TokenInfo{}, fmt.Errorf("'userID' not found in query result")
+				return repositories.TokenInfo{}, fmt.Errorf("'type' not found in query result")
 			}
 
 			return repositories.TokenInfo{
-				ID:    resultID.(int),
-				Label: resultType.([]string)[0],
+				ID:    int(resultID.(int64)),
+				Label: helpers.GetStringSliceFromInterfaceSlice(resultType.([]interface{}))[0],
 			}, nil
 		}
 
