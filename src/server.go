@@ -69,7 +69,7 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 
 func main() {
 	logger := log.New(os.Stdout, "", 0)
-	ip := "neo4j://3.125.35.149"
+	ip := "bolt://3.125.35.149"
 	//database := "neo4j"
 	//ip := "localhost"
 
