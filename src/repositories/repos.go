@@ -1,5 +1,11 @@
 package repositories
 
+const (
+	Token       = "token"
+	Faculty     = "faculty"
+	ForUserOnly = "forUserOnly"
+)
+
 type SpinnerItem struct {
 	Name string `json:"name"`
 }

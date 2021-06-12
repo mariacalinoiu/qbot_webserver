@@ -60,7 +60,17 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 
 	s.mux.HandleFunc("/subjects",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleSubjects(w, r, s.logger, driver, "/subjects")
+			handlers.HandleSubjects(w, r, s.logger, driver, "subjects")
+		},
+	)
+	s.mux.HandleFunc("/faculties",
+		func(w http.ResponseWriter, r *http.Request) {
+			handlers.HandleFaculties(w, r, s.logger, driver, "faculties")
+		},
+	)
+	s.mux.HandleFunc("/specializations",
+		func(w http.ResponseWriter, r *http.Request) {
+			handlers.HandleSpecializations(w, r, s.logger, driver, "specializations")
 		},
 	)
 

@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"qbot_webserver/src/repositories"
 )
 
 func GetToken(r *http.Request) (string, error) {
-	token, err := GetStringParameter(r, "token", true)
+	token, err := GetStringParameter(r, repositories.Token, true)
 	if err != nil {
-		return "", fmt.Errorf("could not get 'token' parameter: %s", err.Error())
+		return "", fmt.Errorf("could not get '%s' parameter: %s", repositories.Token, err.Error())
 	}
 
 	return token, nil

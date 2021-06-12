@@ -66,7 +66,7 @@ func getSubjects(r *http.Request, driver neo4j.Session, path string) ([]byte, in
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
-	forUserOnly, err := helpers.GetBoolParam(r, "forUserOnly", false)
+	forUserOnly, err := helpers.GetBoolParam(r, repositories.ForUserOnly, false)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}

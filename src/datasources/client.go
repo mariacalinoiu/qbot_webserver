@@ -14,6 +14,25 @@ const (
 	teacherLabel = "Teacher"
 )
 
+func GetFaculties(session neo4j.Session) ([]repositories.SpinnerItem, error) {
+	query := `
+		MATCH (f:Faculty) 
+		RETURN f.name AS name
+	`
+
+	return getSpinnerItems(session, query, map[string]interface{}{}, "name")
+}
+
+func GetSpecializations(session neo4j.Session, faculty string) ([]repositories.SpinnerItem, error) {
+	query := fmt.Sprintf(`
+		MATCH (s:Specialization)-[r:IN_FACULTY]->(f:Faculty) 
+		WHERE f.name = '%s' 
+		RETURN s.name AS name
+	`, faculty)
+
+	return getSpinnerItems(session, query, map[string]interface{}{}, "name")
+}
+
 func GetSubjects(session neo4j.Session, path string, token string, forUserOnly bool) ([]repositories.SpinnerItem, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil {
@@ -46,27 +65,7 @@ func GetSubjects(session neo4j.Session, path string, token string, forUserOnly b
 		}
 	}
 
-	subjects, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
-		records, err := tx.Run(query, params)
-		if err != nil {
-			return []repositories.SpinnerItem{}, err
-		}
-		var results []repositories.SpinnerItem
-		for records.Next() {
-			name, ok := records.Record().Get("name")
-			if !ok {
-				return []repositories.SpinnerItem{}, fmt.Errorf("'name' not found in query result")
-			}
-			results = append(results, repositories.SpinnerItem{Name: name.(string)})
-		}
-
-		return results, nil
-	})
-	if err != nil {
-		return []repositories.SpinnerItem{}, err
-	}
-
-	return subjects.([]repositories.SpinnerItem), nil
+	return getSpinnerItems(session, query, params, "name")
 }
 
 func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, error) {
@@ -106,4 +105,28 @@ func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, 
 	}
 
 	return tokenQueryResults.(repositories.TokenInfo), nil
+}
+
+func getSpinnerItems(session neo4j.Session, query string, params map[string]interface{}, recordName string) ([]repositories.SpinnerItem, error) {
+	subjects, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		records, err := tx.Run(query, params)
+		if err != nil {
+			return []repositories.SpinnerItem{}, err
+		}
+		var results []repositories.SpinnerItem
+		for records.Next() {
+			name, ok := records.Record().Get(recordName)
+			if !ok {
+				return []repositories.SpinnerItem{}, fmt.Errorf("'%s' not found in query result", recordName)
+			}
+			results = append(results, repositories.SpinnerItem{Name: name.(string)})
+		}
+
+		return results, nil
+	})
+	if err != nil {
+		return []repositories.SpinnerItem{}, err
+	}
+
+	return subjects.([]repositories.SpinnerItem), nil
 }
