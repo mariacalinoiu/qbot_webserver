@@ -12,3 +12,9 @@ func ConnectNeo4j(uri string, username string, password string) (neo4j.Driver, e
 
 	return driver, nil
 }
+
+func GetNeo4jSession(driver neo4j.Driver) (neo4j.Session, error) {
+	return driver.NewSession(neo4j.SessionConfig{
+		AccessMode: neo4j.AccessModeWrite,
+	})
+}

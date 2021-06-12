@@ -7,8 +7,17 @@ import (
 	"strings"
 )
 
-func getIntParameter(r *http.Request, paramName string, isMandatory bool) (int, error) {
-	stringParam, err := getStringParameter(r, paramName, isMandatory)
+func GetToken(r *http.Request) (string, error) {
+	token, err := GetStringParameter(r, "token", true)
+	if err != nil {
+		return "", fmt.Errorf("could not get 'token' parameter: %s", err.Error())
+	}
+
+	return token, nil
+}
+
+func GetIntParameter(r *http.Request, paramName string, isMandatory bool) (int, error) {
+	stringParam, err := GetStringParameter(r, paramName, isMandatory)
 	if err != nil {
 		return 0, err
 	}
@@ -24,7 +33,24 @@ func getIntParameter(r *http.Request, paramName string, isMandatory bool) (int, 
 	return param, nil
 }
 
-func getStringParameter(r *http.Request, paramName string, isMandatory bool) (string, error) {
+func GetBoolParam(r *http.Request, paramName string, isMandatory bool) (bool, error) {
+	stringParam, err := GetStringParameter(r, paramName, isMandatory)
+	if err != nil {
+		return false, err
+	}
+	if !isMandatory && len(stringParam) == 0 {
+		return false, nil
+	}
+
+	param, err := strconv.ParseBool(stringParam)
+	if err != nil {
+		return false, fmt.Errorf("could not convert parameter '%s' to bool", paramName)
+	}
+
+	return param, nil
+}
+
+func GetStringParameter(r *http.Request, paramName string, isMandatory bool) (string, error) {
 	var err error = nil
 	params, ok := r.URL.Query()[paramName]
 

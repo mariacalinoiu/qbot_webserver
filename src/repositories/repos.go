@@ -13,6 +13,11 @@ type ResponseItem struct {
 	Error   string `json:"error"`
 }
 
+type TokenInfo struct {
+	ID    int    `json:"id"`
+	Label string `json:"label"`
+}
+
 type User struct {
 	ID        int      `json:"id"`
 	Type      string   `json:"type"`

@@ -60,7 +60,7 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 
 	s.mux.HandleFunc("/subjects",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleSubjects(w, r, driver, s.logger)
+			handlers.HandleSubjects(w, r, s.logger, driver, "/subjects")
 		},
 	)
 
@@ -69,17 +69,20 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 
 func main() {
 	logger := log.New(os.Stdout, "", 0)
-	ip := "3.125.35.149"
+	ip := "neo4j://3.125.35.149"
+	//database := "neo4j"
 	//ip := "localhost"
 
 	driver, err := datasources.ConnectNeo4j(ip, "neo4j", "mariairene")
 	if err != nil {
-		logger.Printf(fmt.Sprintf("error connecting to Neo4j: %s", err))
+		logger.Println(fmt.Sprintf("error connecting to Neo4j: %s", err))
+	} else {
+		logger.Println("connected to Neo4j")
 	}
 
 	hs := setup(logger, driver)
 
-	logger.Printf("Listening on http://%s%s\n", ip, hs.Addr)
+	logger.Printf("Listening on http://localhost%s\n", hs.Addr)
 	go func() {
 		if err := hs.ListenAndServe(); err != nil {
 			logger.Println(err)
