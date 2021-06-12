@@ -73,6 +73,16 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 			handlers.HandleSpecializations(w, r, s.logger, driver, "specializations")
 		},
 	)
+	s.mux.HandleFunc("/groups",
+		func(w http.ResponseWriter, r *http.Request) {
+			handlers.HandleGroups(w, r, s.logger, driver, "groups")
+		},
+	)
+	s.mux.HandleFunc("/objective",
+		func(w http.ResponseWriter, r *http.Request) {
+			handlers.HandleObjectives(w, r, s.logger, driver, "objective")
+		},
+	)
 
 	return s
 }
@@ -80,8 +90,6 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 func main() {
 	logger := log.New(os.Stdout, "", 0)
 	ip := "bolt://3.125.35.149"
-	//database := "neo4j"
-	//ip := "localhost"
 
 	driver, err := datasources.ConnectNeo4j(ip, "neo4j", "mariairene")
 	if err != nil {

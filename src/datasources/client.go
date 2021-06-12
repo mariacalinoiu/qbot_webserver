@@ -14,6 +14,36 @@ const (
 	teacherLabel = "Teacher"
 )
 
+// Objectives
+
+func GetObjectives(session neo4j.Session, token string, subject string) ([]repositories.Objective, error) {
+	//query := fmt.Sprintf(`
+	//	MATCH (s:Student)-[so:SET_OBJECTIVE]->(subj:Subject)
+	//	WHERE s.token = $token AND subj.name = '%s'
+	//	RETURN TODO
+	//`, subject)
+	//param := map[string]interface{}{
+	//	"token": token,
+	//}
+
+	return []repositories.Objective{}, nil
+}
+
+func AddObjective(session neo4j.Session, token string, subject string, objective repositories.Objective) error {
+	//query := fmt.Sprintf(`
+	//	MATCH (s:Student)-[so:SET_OBJECTIVE]->(subj:Subject)
+	//	WHERE s.token = $token AND subj.name = '%s'
+	//	SET TODO
+	//`, subject)
+	//param := map[string]interface{}{
+	//	"token": token,
+	//}
+
+	return nil
+}
+
+// General
+
 func GetFaculties(session neo4j.Session) ([]repositories.SpinnerItem, error) {
 	query := `
 		MATCH (f:Faculty) 
@@ -31,6 +61,16 @@ func GetSpecializations(session neo4j.Session, faculty string) ([]repositories.S
 	`, faculty)
 
 	return getSpinnerItems(session, query, map[string]interface{}{}, "name")
+}
+
+func GetGroups(session neo4j.Session, faculty string, specialization string) ([]repositories.SpinnerItem, error) {
+	query := fmt.Sprintf(`
+		MATCH (g:Group)-[gs:HAS_SPECIALIZATION]->(s:Specialization)-[sf:IN_FACULTY]->(f:Faculty) 
+		WHERE f.name = '%s' AND s.name = '%s'
+		RETURN apoc.convert.toString(g.gID) AS group
+	`, faculty, specialization)
+
+	return getSpinnerItems(session, query, map[string]interface{}{}, "group")
 }
 
 func GetSubjects(session neo4j.Session, path string, token string, forUserOnly bool) ([]repositories.SpinnerItem, error) {

@@ -1,9 +1,11 @@
 package repositories
 
 const (
-	Token       = "token"
-	Faculty     = "faculty"
-	ForUserOnly = "forUserOnly"
+	Token          = "token"
+	Faculty        = "faculty"
+	Specialization = "specialization"
+	Subject        = "subject"
+	ForUserOnly    = "forUserOnly"
 )
 
 type SpinnerItem struct {
@@ -45,7 +47,6 @@ type Student struct {
 	User
 	Year           string `json:"year"`
 	Specialization string `json:"specialization"`
-	Series         string `json:"series"`
 	Group          int    `json:"group"`
 	NrTestsTaken   int    `json:"nrTestsTaken"`
 	AverageGrade   int    `json:"averageGrade"`
