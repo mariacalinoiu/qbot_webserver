@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
-
-	"qbot_webserver/src/datasources"
-	"qbot_webserver/src/handlers"
 )
 
 type server struct {
