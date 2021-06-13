@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"qbot_webserver/src/handlers/spinneritems"
 	"qbot_webserver/src/handlers/tests"
+	handlers2 "qbot_webserver/src/helpers"
 
-	"qbot_webserver/src/datasources"
 	"qbot_webserver/src/handlers"
 )
 
@@ -61,22 +62,22 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 
 	s.mux.HandleFunc("/subjects",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleSubjects(w, r, s.logger, driver, "subjects")
+			spinneritems.HandleSubjects(w, r, s.logger, driver, "subjects")
 		},
 	)
 	s.mux.HandleFunc("/faculties",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleFaculties(w, r, s.logger, driver, "faculties")
+			spinneritems.HandleFaculties(w, r, s.logger, driver, "faculties")
 		},
 	)
 	s.mux.HandleFunc("/specializations",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleSpecializations(w, r, s.logger, driver, "specializations")
+			spinneritems.HandleSpecializations(w, r, s.logger, driver, "specializations")
 		},
 	)
 	s.mux.HandleFunc("/groups",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleGroups(w, r, s.logger, driver, "groups")
+			spinneritems.HandleGroups(w, r, s.logger, driver, "groups")
 		},
 	)
 	s.mux.HandleFunc("/tests/answers",
@@ -122,7 +123,7 @@ func main() {
 	logger := log.New(os.Stdout, "", 0)
 	ip := "bolt://3.125.35.149"
 
-	driver, err := datasources.ConnectNeo4j(ip, "neo4j", "mariairene")
+	driver, err := handlers2.ConnectNeo4j(ip, "neo4j", "mariairene")
 	if err != nil {
 		logger.Println(fmt.Sprintf("error connecting to Neo4j: %s", err))
 	} else {

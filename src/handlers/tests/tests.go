@@ -19,7 +19,7 @@ func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 	var err error
 
 	helpers.SetContentType(w)
-	session, err := datasources.GetNeo4jSession(driver)
+	session, err := helpers.GetNeo4jSession(driver)
 	if err != nil {
 		helpers.PrintError(logger, err, status)
 		http.Error(w, err.Error(), status)
@@ -89,7 +89,7 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	tests, err := datasources.GetTests(session, token, onlyGraded, testID, searchString, subject)
+	tests, err := datasources.GetTests(session, path, token, onlyGraded, testID, searchString, subject)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}

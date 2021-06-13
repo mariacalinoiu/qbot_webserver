@@ -9,10 +9,16 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
+const (
+	EmptyIntParameter    = -1
+	EmptyStringParameter = ""
+	EmptyBoolParameter   = false
+)
+
 func GetToken(r *http.Request) (string, error) {
 	token, err := GetStringParameter(r, repositories.Token, true)
 	if err != nil {
-		return "", fmt.Errorf("could not get '%s' parameter: %s", repositories.Token, err.Error())
+		return EmptyStringParameter, fmt.Errorf("could not get '%s' parameter: %s", repositories.Token, err.Error())
 	}
 
 	return token, nil
@@ -21,15 +27,15 @@ func GetToken(r *http.Request) (string, error) {
 func GetIntParameter(r *http.Request, paramName string, isMandatory bool) (int, error) {
 	stringParam, err := GetStringParameter(r, paramName, isMandatory)
 	if err != nil {
-		return 0, err
+		return EmptyIntParameter, err
 	}
 	if !isMandatory && len(stringParam) == 0 {
-		return 0, nil
+		return EmptyIntParameter, nil
 	}
 
 	param, err := strconv.Atoi(stringParam)
 	if err != nil {
-		return 0, fmt.Errorf("could not convert parameter '%s' to integer", paramName)
+		return EmptyIntParameter, fmt.Errorf("could not convert parameter '%s' to integer", paramName)
 	}
 
 	return param, nil
@@ -38,15 +44,15 @@ func GetIntParameter(r *http.Request, paramName string, isMandatory bool) (int, 
 func GetBoolParameter(r *http.Request, paramName string, isMandatory bool) (bool, error) {
 	stringParam, err := GetStringParameter(r, paramName, isMandatory)
 	if err != nil {
-		return false, err
+		return EmptyBoolParameter, err
 	}
 	if !isMandatory && len(stringParam) == 0 {
-		return false, nil
+		return EmptyBoolParameter, nil
 	}
 
 	param, err := strconv.ParseBool(stringParam)
 	if err != nil {
-		return false, fmt.Errorf("could not convert parameter '%s' to bool", paramName)
+		return EmptyBoolParameter, fmt.Errorf("could not convert parameter '%s' to bool", paramName)
 	}
 
 	return param, nil
@@ -60,7 +66,7 @@ func GetStringParameter(r *http.Request, paramName string, isMandatory bool) (st
 		if isMandatory {
 			err = fmt.Errorf("mandatory parameter '%s' not found", paramName)
 		}
-		return "", err
+		return EmptyStringParameter, err
 	}
 
 	param := strings.Replace(params[0], `'`, ``, -1)

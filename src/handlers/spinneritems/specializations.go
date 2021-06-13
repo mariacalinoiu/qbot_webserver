@@ -1,4 +1,4 @@
-package handlers
+package spinneritems
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ func HandleSpecializations(w http.ResponseWriter, r *http.Request, logger *log.L
 	var err error
 
 	helpers.SetContentType(w)
-	session, err := datasources.GetNeo4jSession(driver)
+	session, err := helpers.GetNeo4jSession(driver)
 	if err != nil {
 		helpers.PrintError(logger, err, status)
 		http.Error(w, err.Error(), status)

@@ -1,4 +1,4 @@
-package datasources
+package handlers
 
 import (
 	"github.com/neo4j/neo4j-go-driver/neo4j"
