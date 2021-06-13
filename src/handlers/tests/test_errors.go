@@ -96,7 +96,7 @@ func overwriteGrade(r *http.Request, session neo4j.Session, path string) (int, e
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.OverwriteGradeForTest(session, token, testID, studentID, newGrade)
+	err = datasources.OverwriteGradeForTest(session, path, token, testID, studentID, newGrade)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}

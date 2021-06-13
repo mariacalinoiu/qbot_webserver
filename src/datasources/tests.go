@@ -2,6 +2,7 @@ package datasources
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 
@@ -50,10 +51,25 @@ func AddFeedbackForTest(session neo4j.Session, path string, token string, testID
 	return helpers.WriteTX(session, query, params)
 }
 
-func OverwriteGradeForTest(session neo4j.Session, token string, testID int, studentID int, newGrade int) error {
-	// TODO
+func OverwriteGradeForTest(session neo4j.Session, path string, token string, testID int, studentID int, newGrade int) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != teacherLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return nil
+	query := `
+		MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID}) 
+		SET st.correctedGrade = $newGrade, st.correctedGradeTimestamp = $newGradeTS, st.notificationMessage = ""
+	`
+	params := map[string]interface{}{
+		"studentID":  studentID,
+		"testID":     testID,
+		"teacherID":  tokenInfo.ID,
+		"newGrade":   newGrade,
+		"newGradeTS": time.Now().Unix(),
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
 func SignalErrorForTest(session neo4j.Session, path string, token string, testID int) error {
@@ -138,7 +154,8 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 
 	query = fmt.Sprintf(`
 		MATCH (p:Teacher {ID:$teacherID}), (t:Test {testID:$testID}), (subj:Subject {name:'%s'}) 
-		CREATE (t)-[r:ADDED_BY]->(p), (t)-[q:BELONGS_TO]->(subj)
+		MERGE (t)-[r:ADDED_BY]->(p)
+		MERGE (t)-[q:BELONGS_TO]->(subj)
 	`, test.Subject)
 
 	params = map[string]interface{}{
