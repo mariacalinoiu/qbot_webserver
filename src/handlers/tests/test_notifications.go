@@ -67,7 +67,7 @@ func getNotifications(r *http.Request, session neo4j.Session, path string) ([]by
 		return []byte{}, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
 
-	notificationTests, err := datasources.GetNotificationTests(session, token)
+	notificationTests, err := datasources.GetNotificationTests(session, path, token)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}

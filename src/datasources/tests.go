@@ -1,7 +1,9 @@
 package datasources
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
@@ -57,10 +59,10 @@ func OverwriteGradeForTest(session neo4j.Session, path string, token string, tes
 		return helpers.InvalidTokenError(path, err)
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 		MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID}) 
-		SET st.correctedGrade = $newGrade, st.correctedGradeTimestamp = $newGradeTS, st.notificationMessage = ""
-	`
+		SET st.correctedGrade = $newGrade, st.correctedGradeTimestamp = $newGradeTS, st.notificationMessage = '%s'
+	`, helpers.TestCorrectionNotification)
 	params := map[string]interface{}{
 		"studentID":  studentID,
 		"testID":     testID,
@@ -78,11 +80,11 @@ func SignalErrorForTest(session neo4j.Session, path string, token string, testID
 		return helpers.InvalidTokenError(path, err)
 	}
 
-	query := `
+	query := fmt.Sprintf(`
 		MATCH (s:Student)-[st:COMPLETED]->(t:Test) 
 		WHERE s.ID = $studentID AND t.testID = $testID 
-		SET st.notificationMessage = "Grading error signaled for test!"
-	`
+		SET st.notificationMessage = '%s'
+	`, helpers.GradingErrorNotification)
 	params := map[string]interface{}{
 		"studentID": tokenInfo.ID,
 		"testID":    testID,
@@ -91,14 +93,13 @@ func SignalErrorForTest(session neo4j.Session, path string, token string, testID
 	return helpers.WriteTX(session, query, params)
 }
 
-func GetNotificationTests(session neo4j.Session, token string) ([]repositories.CompletedTest, error) {
-	// TODO
+func GradeTest(logger *log.Logger, session neo4j.Session, path string, token string, test repositories.CompletedTest) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != teacherLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return []repositories.CompletedTest{}, nil
-}
-
-func GradeTest(session neo4j.Session, token string, test repositories.CompletedTest) error {
-	// TODO
+	go helpers.GradeTestImage(logger, session, tokenInfo.ID, test)
 
 	return nil
 }
@@ -126,7 +127,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 		`
 	}
 
-	templateURL, err := generateTestTemplate(test)
+	templateURL, err := helpers.GenerateTestTemplate(test)
 
 	query := fmt.Sprintf(`
 		%s 
@@ -183,6 +184,24 @@ func DeleteTest(session neo4j.Session, path string, token string, testID int) er
 	}
 
 	return helpers.WriteTX(session, query, params)
+}
+
+func GetNotificationTests(session neo4j.Session, path string, token string) ([]repositories.CompletedTest, error) {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil {
+		return []repositories.CompletedTest{}, helpers.InvalidTokenError(path, err)
+	}
+
+	notificationMessages := make([]string, 2)
+	if tokenInfo.Label == teacherLabel {
+		notificationMessages[0] = helpers.GradingErrorNotification
+		notificationMessages[1] = helpers.TestGradedNotification
+	} else {
+		notificationMessages[0] = helpers.TestCorrectionNotification
+		notificationMessages[1] = helpers.TestGradedNotification
+	}
+
+	return getNotificationsCompletedTests(session, tokenInfo, notificationMessages)
 }
 
 func GetTests(session neo4j.Session, path string, token string, testID int, searchString string) ([]repositories.CompletedTest, error) {
@@ -307,6 +326,54 @@ func getAllCompletedTestsForTeacher(session neo4j.Session, testID int) ([]reposi
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
 		records, err := tx.Run(query, map[string]interface{}{"testID": testID})
+		if err != nil {
+			return []repositories.CompletedTest{}, err
+		}
+
+		for records.Next() {
+			record := records.Record()
+			completedTest, err := getCompletedTestFromTestQuery(record)
+			if err != nil {
+				return []repositories.CompletedTest{}, err
+			}
+
+			results = append(results, completedTest)
+		}
+
+		return results, nil
+	})
+
+	if err != nil {
+		return []repositories.CompletedTest{}, err
+	}
+
+	return testResults.([]repositories.CompletedTest), nil
+}
+
+func getNotificationsCompletedTests(session neo4j.Session, tokenInfo repositories.TokenInfo, messages []string) ([]repositories.CompletedTest, error) {
+	nodePrefix := "p"
+	if tokenInfo.Label == studentLabel {
+		nodePrefix = "s"
+	}
+
+	messagesString, err := json.Marshal(messages)
+	if err != nil {
+		return []repositories.CompletedTest{}, err
+	}
+	query := fmt.Sprintf(`
+		MATCH (g:Group)<-[sg:MEMBER_OF]-(s:Student)-[st:COMPLETED]->(t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
+		WHERE %s.ID = $ID 
+			AND st.notificationMessage IN %s
+		RETURN s.ID, s.email, s.firstName, s.lastName, g.gID, 
+				t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
+					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
+					p.ID, p.email, p.firstName, p.lastName, 
+				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback
+	`, nodePrefix, messagesString)
+
+	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		var results []repositories.CompletedTest
+		records, err := tx.Run(query, map[string]interface{}{"ID": tokenInfo.ID})
 		if err != nil {
 			return []repositories.CompletedTest{}, err
 		}
@@ -544,10 +611,4 @@ func getNextID(session neo4j.Session, label string, IDProperty string) (int, err
 	}
 
 	return nextID.(int), nil
-}
-
-func generateTestTemplate(test repositories.Test) (string, error) {
-	// TODO generate template
-
-	return "https://i.pinimg.com/564x/24/4c/8b/244c8b25406a92dfba3fbfa1e803d824.jpg", nil
 }

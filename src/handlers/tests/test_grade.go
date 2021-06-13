@@ -32,7 +32,7 @@ func HandleTestGrade(w http.ResponseWriter, r *http.Request, logger *log.Logger,
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodPost:
-		status, err = gradeTest(r, session, path)
+		status, err = gradeTest(r, logger, session, path)
 	default:
 		status = http.StatusBadRequest
 		err = helpers.WrongMethodError(path)
@@ -59,7 +59,7 @@ func HandleTestGrade(w http.ResponseWriter, r *http.Request, logger *log.Logger,
 	helpers.PrintStatus(logger, status)
 }
 
-func gradeTest(r *http.Request, session neo4j.Session, path string) (int, error) {
+func gradeTest(r *http.Request, logger *log.Logger, session neo4j.Session, path string) (int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
@@ -69,7 +69,7 @@ func gradeTest(r *http.Request, session neo4j.Session, path string) (int, error)
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
 
-	err = datasources.GradeTest(session, token, test)
+	err = datasources.GradeTest(logger, session, path, token, test)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}
