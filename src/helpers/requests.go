@@ -45,6 +45,10 @@ func BadParameterError(path string, err error) error {
 	return fmt.Errorf("bad parameters for request %s: %s", path, err.Error())
 }
 
+func CouldNotExtractBodyError(path string, err error) error {
+	return fmt.Errorf("could not extract body for request %s: %s", path, err.Error())
+}
+
 func InvalidTokenError(path string, err error) error {
 	return fmt.Errorf("token not found for %s: %s", path, err.Error())
 }

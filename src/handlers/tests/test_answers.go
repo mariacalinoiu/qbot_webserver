@@ -1,4 +1,4 @@
-package handlers
+package tests
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
+func HandleTestAnswers(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
 	var response []byte
 	var status int
 	var err error
@@ -31,11 +31,8 @@ func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger
 	switch r.Method {
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
-	case http.MethodGet:
-		response, status, err = getObjectives(r, session, path)
 	case http.MethodPost:
-	case http.MethodPut:
-		status, err = setObjective(r, session, path)
+		status, err = addAnswers(r, session, path)
 	default:
 		status = http.StatusBadRequest
 		err = helpers.WrongMethodError(path)
@@ -65,44 +62,21 @@ func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger
 	helpers.PrintStatus(logger, status)
 }
 
-func getObjectives(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
-	token, err := helpers.GetToken(r)
-	if err != nil {
-		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
-	}
-	subject, err := helpers.GetStringParameter(r, repositories.Subject, false)
-	if err != nil {
-		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
-	}
-
-	objective, err := datasources.GetObjectives(session, token, subject)
-	if err != nil {
-		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
-	}
-
-	response, err := json.Marshal(objective)
-	if err != nil {
-		return nil, http.StatusInternalServerError, helpers.MarshalError(path, err)
-	}
-
-	return response, http.StatusOK, nil
-}
-
-func setObjective(r *http.Request, session neo4j.Session, path string) (int, error) {
+func addAnswers(r *http.Request, session neo4j.Session, path string) (int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
-	objective, err := extractObjective(r)
+	answers, err := extractAnswers(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
-	subject, err := helpers.GetStringParameter(r, repositories.Subject, false)
+	testID, err := helpers.GetIntParameter(r, repositories.TestID, true)
 	if err != nil {
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.AddObjective(session, token, subject, objective)
+	err = datasources.AddTestAnswers(session, token, testID, answers)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}
@@ -110,18 +84,18 @@ func setObjective(r *http.Request, session neo4j.Session, path string) (int, err
 	return http.StatusOK, nil
 }
 
-func extractObjective(r *http.Request) (repositories.Objective, error) {
-	var unmarshalledObjective repositories.Objective
+func extractAnswers(r *http.Request) (map[int][]string, error) {
+	var unmarshalledAnswers map[int][]string
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return repositories.Objective{}, err
+		return map[int][]string{}, err
 	}
 
-	err = json.Unmarshal(body, &unmarshalledObjective)
+	err = json.Unmarshal(body, &unmarshalledAnswers)
 	if err != nil {
-		return repositories.Objective{}, err
+		return map[int][]string{}, err
 	}
 
-	return unmarshalledObjective, nil
+	return unmarshalledAnswers, nil
 }

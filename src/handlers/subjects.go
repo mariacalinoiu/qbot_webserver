@@ -61,17 +61,17 @@ func HandleSubjects(w http.ResponseWriter, r *http.Request, logger *log.Logger, 
 	helpers.PrintStatus(logger, status)
 }
 
-func getSubjects(r *http.Request, driver neo4j.Session, path string) ([]byte, int, error) {
+func getSubjects(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
-	forUserOnly, err := helpers.GetBoolParam(r, repositories.ForUserOnly, false)
+	forUserOnly, err := helpers.GetBoolParameter(r, repositories.ForUserOnly, false)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	subjects, err := datasources.GetSubjects(driver, path, token, forUserOnly)
+	subjects, err := datasources.GetSubjects(session, path, token, forUserOnly)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}

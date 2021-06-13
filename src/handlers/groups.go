@@ -61,7 +61,7 @@ func HandleGroups(w http.ResponseWriter, r *http.Request, logger *log.Logger, dr
 	helpers.PrintStatus(logger, status)
 }
 
-func getGroups(r *http.Request, driver neo4j.Session, path string) ([]byte, int, error) {
+func getGroups(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
 	faculty, err := helpers.GetStringParameter(r, repositories.Faculty, true)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
@@ -71,7 +71,7 @@ func getGroups(r *http.Request, driver neo4j.Session, path string) ([]byte, int,
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	groups, err := datasources.GetGroups(driver, faculty, specialization)
+	groups, err := datasources.GetGroups(session, faculty, specialization)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}

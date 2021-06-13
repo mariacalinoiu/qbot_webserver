@@ -5,7 +5,13 @@ const (
 	Faculty        = "faculty"
 	Specialization = "specialization"
 	Subject        = "subject"
+	TestID         = "test"
+	StudentID      = "studentId"
+	NewGrade       = "newGrade"
+	Feedback       = "feedback"
 	ForUserOnly    = "forUserOnly"
+	OnlyGraded     = "onlyGraded"
+	Search         = "search"
 )
 
 type SpinnerItem struct {

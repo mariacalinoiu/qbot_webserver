@@ -14,6 +14,62 @@ const (
 	teacherLabel = "Teacher"
 )
 
+// Tests
+
+func AddTestAnswers(session neo4j.Session, token string, testID int, answers map[int][]string) error {
+	// TODO
+
+	return nil
+}
+
+func AddFeedbackForTest(session neo4j.Session, token string, testID int, feedback string) error {
+	// TODO
+
+	return nil
+}
+
+func OverwriteGradeForTest(session neo4j.Session, token string, testID int, studentID int, newGrade int) error {
+	// TODO
+
+	return nil
+}
+
+func SignalErrorForTest(session neo4j.Session, token string, testID int) error {
+	// TODO
+
+	return nil
+}
+
+func GetNotificationTests(session neo4j.Session, token string) ([]repositories.CompletedTest, error) {
+	// TODO
+
+	return []repositories.CompletedTest{}, nil
+}
+
+func GradeTest(session neo4j.Session, token string, test repositories.CompletedTest) error {
+	// TODO
+
+	return nil
+}
+
+func GetTests(session neo4j.Session, token string, onlyGraded bool, testID int, searchString string, subject string) ([]repositories.CompletedTest, error) {
+	// TODO
+
+	return []repositories.CompletedTest{}, nil
+}
+
+func AddTest(session neo4j.Session, token string, test repositories.Test) error {
+	// TODO
+
+	return nil
+}
+
+func DeleteTest(session neo4j.Session, token string, testID int) error {
+	// TODO
+
+	return nil
+}
+
 // Objectives
 
 func GetObjectives(session neo4j.Session, token string, subject string) ([]repositories.Objective, error) {

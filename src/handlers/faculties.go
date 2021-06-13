@@ -61,8 +61,8 @@ func HandleFaculties(w http.ResponseWriter, r *http.Request, logger *log.Logger,
 	helpers.PrintStatus(logger, status)
 }
 
-func getFaculties(driver neo4j.Session, path string) ([]byte, int, error) {
-	faculties, err := datasources.GetFaculties(driver)
+func getFaculties(session neo4j.Session, path string) ([]byte, int, error) {
+	faculties, err := datasources.GetFaculties(session)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}

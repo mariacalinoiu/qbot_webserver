@@ -1,4 +1,4 @@
-package handlers
+package tests
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func HandleSpecializations(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
+func HandleTestNotifications(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
 	var response []byte
 	var status int
 	var err error
@@ -31,7 +31,7 @@ func HandleSpecializations(w http.ResponseWriter, r *http.Request, logger *log.L
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodGet:
-		response, status, err = getSpecializations(r, session, path)
+		response, status, err = getNotifications(r, session, path)
 	default:
 		status = http.StatusBadRequest
 		err = helpers.WrongMethodError(path)
@@ -61,18 +61,18 @@ func HandleSpecializations(w http.ResponseWriter, r *http.Request, logger *log.L
 	helpers.PrintStatus(logger, status)
 }
 
-func getSpecializations(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
-	faculty, err := helpers.GetStringParameter(r, repositories.Faculty, true)
+func getNotifications(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
+	token, err := helpers.GetToken(r)
 	if err != nil {
-		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
+		return []byte{}, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
 
-	specializations, err := datasources.GetSpecializations(session, faculty)
+	notificationTests, err := datasources.GetNotificationTests(session, token)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
 
-	response, err := json.Marshal(specializations)
+	response, err := json.Marshal(notificationTests)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.MarshalError(path, err)
 	}

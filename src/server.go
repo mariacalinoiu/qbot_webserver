@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"qbot_webserver/src/handlers/tests"
 
 	"qbot_webserver/src/datasources"
 	"qbot_webserver/src/handlers"
@@ -78,7 +79,37 @@ func newServer(driver neo4j.Driver, options ...option) *server {
 			handlers.HandleGroups(w, r, s.logger, driver, "groups")
 		},
 	)
-	s.mux.HandleFunc("/objective",
+	s.mux.HandleFunc("/tests/answers",
+		func(w http.ResponseWriter, r *http.Request) {
+			tests.HandleTestAnswers(w, r, s.logger, driver, "testAnswers")
+		},
+	)
+	s.mux.HandleFunc("/tests/errors",
+		func(w http.ResponseWriter, r *http.Request) {
+			tests.HandleTestErrors(w, r, s.logger, driver, "testErrors")
+		},
+	)
+	s.mux.HandleFunc("/tests/feedback",
+		func(w http.ResponseWriter, r *http.Request) {
+			tests.HandleTestFeedback(w, r, s.logger, driver, "testFeedback")
+		},
+	)
+	s.mux.HandleFunc("/tests/grade",
+		func(w http.ResponseWriter, r *http.Request) {
+			tests.HandleTestGrade(w, r, s.logger, driver, "testGrade")
+		},
+	)
+	s.mux.HandleFunc("/tests/notifications",
+		func(w http.ResponseWriter, r *http.Request) {
+			tests.HandleTestNotifications(w, r, s.logger, driver, "testNotifications")
+		},
+	)
+	s.mux.HandleFunc("/tests",
+		func(w http.ResponseWriter, r *http.Request) {
+			tests.HandleTests(w, r, s.logger, driver, "tests")
+		},
+	)
+	s.mux.HandleFunc("/objectives",
 		func(w http.ResponseWriter, r *http.Request) {
 			handlers.HandleObjectives(w, r, s.logger, driver, "objective")
 		},

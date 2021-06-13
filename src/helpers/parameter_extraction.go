@@ -35,7 +35,7 @@ func GetIntParameter(r *http.Request, paramName string, isMandatory bool) (int, 
 	return param, nil
 }
 
-func GetBoolParam(r *http.Request, paramName string, isMandatory bool) (bool, error) {
+func GetBoolParameter(r *http.Request, paramName string, isMandatory bool) (bool, error) {
 	stringParam, err := GetStringParameter(r, paramName, isMandatory)
 	if err != nil {
 		return false, err

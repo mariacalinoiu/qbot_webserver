@@ -1,4 +1,4 @@
-package handlers
+package tests
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
+func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
 	var response []byte
 	var status int
 	var err error
@@ -32,10 +32,12 @@ func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodGet:
-		response, status, err = getObjectives(r, session, path)
+		response, status, err = getTests(r, session, path)
 	case http.MethodPost:
 	case http.MethodPut:
-		status, err = setObjective(r, session, path)
+		status, err = addTest(r, session, path)
+	case http.MethodDelete:
+		status, err = deleteTest(r, session, path)
 	default:
 		status = http.StatusBadRequest
 		err = helpers.WrongMethodError(path)
@@ -65,22 +67,34 @@ func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger
 	helpers.PrintStatus(logger, status)
 }
 
-func getObjectives(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
+func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
+	}
+	onlyGraded, err := helpers.GetBoolParameter(r, repositories.OnlyGraded, false)
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
+	}
+	testID, err := helpers.GetIntParameter(r, repositories.TestID, false)
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
+	}
+	searchString, err := helpers.GetStringParameter(r, repositories.Search, false)
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 	subject, err := helpers.GetStringParameter(r, repositories.Subject, false)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	objective, err := datasources.GetObjectives(session, token, subject)
+	tests, err := datasources.GetTests(session, token, onlyGraded, testID, searchString, subject)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
 
-	response, err := json.Marshal(objective)
+	response, err := json.Marshal(tests)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.MarshalError(path, err)
 	}
@@ -88,21 +102,17 @@ func getObjectives(r *http.Request, session neo4j.Session, path string) ([]byte,
 	return response, http.StatusOK, nil
 }
 
-func setObjective(r *http.Request, session neo4j.Session, path string) (int, error) {
+func addTest(r *http.Request, session neo4j.Session, path string) (int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
-	objective, err := extractObjective(r)
+	test, err := extractTest(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
-	subject, err := helpers.GetStringParameter(r, repositories.Subject, false)
-	if err != nil {
-		return http.StatusBadRequest, helpers.BadParameterError(path, err)
-	}
 
-	err = datasources.AddObjective(session, token, subject, objective)
+	err = datasources.AddTest(session, token, test)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}
@@ -110,18 +120,36 @@ func setObjective(r *http.Request, session neo4j.Session, path string) (int, err
 	return http.StatusOK, nil
 }
 
-func extractObjective(r *http.Request) (repositories.Objective, error) {
-	var unmarshalledObjective repositories.Objective
+func deleteTest(r *http.Request, session neo4j.Session, path string) (int, error) {
+	token, err := helpers.GetToken(r)
+	if err != nil {
+		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
+	}
+	testID, err := helpers.GetIntParameter(r, repositories.TestID, true)
+	if err != nil {
+		return http.StatusBadRequest, helpers.BadParameterError(path, err)
+	}
+
+	err = datasources.DeleteTest(session, token, testID)
+	if err != nil {
+		return http.StatusInternalServerError, helpers.GetError(path, err)
+	}
+
+	return http.StatusOK, nil
+}
+
+func extractTest(r *http.Request) (repositories.Test, error) {
+	var unmarshalledTest repositories.Test
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return repositories.Objective{}, err
+		return repositories.Test{}, err
 	}
 
-	err = json.Unmarshal(body, &unmarshalledObjective)
+	err = json.Unmarshal(body, &unmarshalledTest)
 	if err != nil {
-		return repositories.Objective{}, err
+		return repositories.Test{}, err
 	}
 
-	return unmarshalledObjective, nil
+	return unmarshalledTest, nil
 }
