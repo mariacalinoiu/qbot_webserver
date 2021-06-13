@@ -33,9 +33,8 @@ func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodGet:
 		response, status, err = getTests(r, session, path)
-	case http.MethodPost:
-	case http.MethodPut:
-		status, err = addTest(r, session, path)
+	case http.MethodPost, http.MethodPut:
+		status, err = addTest(r, session, path, logger)
 	case http.MethodDelete:
 		status, err = deleteTest(r, session, path)
 	default:
@@ -94,7 +93,7 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 	return response, http.StatusOK, nil
 }
 
-func addTest(r *http.Request, session neo4j.Session, path string) (int, error) {
+func addTest(r *http.Request, session neo4j.Session, path string, logger *log.Logger) (int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
@@ -104,9 +103,9 @@ func addTest(r *http.Request, session neo4j.Session, path string) (int, error) {
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
 
-	err = datasources.AddTest(session, token, test)
+	err = datasources.AddTest(session, path, token, test)
 	if err != nil {
-		return http.StatusInternalServerError, helpers.GetError(path, err)
+		return http.StatusInternalServerError, helpers.AddError(path, err)
 	}
 
 	return http.StatusOK, nil
@@ -122,7 +121,7 @@ func deleteTest(r *http.Request, session neo4j.Session, path string) (int, error
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.DeleteTest(session, token, testID)
+	err = datasources.DeleteTest(session, path, token, testID)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}

@@ -41,6 +41,10 @@ func GetError(path string, err error) error {
 	return fmt.Errorf("could not get %s: %s", path, err.Error())
 }
 
+func AddError(path string, err error) error {
+	return fmt.Errorf("could not add %s: %s", path, err.Error())
+}
+
 func BadParameterError(path string, err error) error {
 	return fmt.Errorf("bad parameters for request %s: %s", path, err.Error())
 }

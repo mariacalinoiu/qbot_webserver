@@ -45,16 +45,85 @@ func GradeTest(session neo4j.Session, token string, test repositories.CompletedT
 	return nil
 }
 
-func AddTest(session neo4j.Session, token string, test repositories.Test) error {
-	// TODO
+func AddTest(session neo4j.Session, path string, token string, test repositories.Test) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != teacherLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return nil
+	queryPrefix := ""
+	testID := test.ID
+	if test.ID != 0 {
+		queryPrefix = `
+			MATCH (t:Test {testID:$testID}) 
+		`
+	} else {
+		testID, err = getNextID(session, "Test", "testID")
+		if err != nil {
+			return err
+		}
+
+		queryPrefix = `
+			CREATE (t:Test {testID:$testID}) 
+		`
+	}
+
+	templateURL, err := generateTestTemplate(test)
+
+	query := fmt.Sprintf(`
+		%s 
+		SET t.name='%s', t.nrQuestions=$nrQuestions, t.nrAnswers=$nrAnswers, t.points=$points, t.exOfficio=$exOfficio, 
+			t.multipleAnswersAllowed=$multipleAnswersAllowed, t.enablePartialScoring=$enablePartialScoring, t.mandatoryToPass=$mandatoryToPass,
+			t.template=$template, t.answers='[[]]'
+	`, queryPrefix, test.Name)
+
+	params := map[string]interface{}{
+		"testID":                 testID,
+		"nrQuestions":            test.NrQuestions,
+		"nrAnswers":              test.NrAnswerOptions,
+		"points":                 test.TotalPoints,
+		"exOfficio":              test.ExOfficioPoints,
+		"multipleAnswersAllowed": test.MultipleAnswersAllowed,
+		"enablePartialScoring":   test.EnablePartialScoring,
+		"mandatoryToPass":        test.MandatoryToPass,
+		"template":               templateURL,
+	}
+
+	err = helpers.WriteTX(session, query, params)
+	if err != nil {
+		return err
+	}
+
+	query = fmt.Sprintf(`
+		MATCH (p:Teacher {ID:$teacherID}), (t:Test {testID:$testID}), (subj:Subject {name:'%s'}) 
+		CREATE (t)-[r:ADDED_BY]->(p), (t)-[q:BELONGS_TO]->(subj)
+	`, test.Subject)
+
+	params = map[string]interface{}{
+		"teacherID": tokenInfo.ID,
+		"testID":    testID,
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
-func DeleteTest(session neo4j.Session, token string, testID int) error {
-	// TODO
+func DeleteTest(session neo4j.Session, path string, token string, testID int) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != teacherLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return nil
+	query := `
+		MATCH (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
+		WHERE p.ID = $teacherID AND t.testID = $testID 
+		DETACH DELETE t
+	`
+	params := map[string]interface{}{
+		"teacherID": tokenInfo.ID,
+		"testID":    testID,
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
 func GetTests(session neo4j.Session, path string, token string, testID int, searchString string) ([]repositories.CompletedTest, error) {
@@ -69,11 +138,9 @@ func GetTests(session neo4j.Session, path string, token string, testID int, sear
 		} else {
 			return getAllTestsForTeacher(session, tokenInfo.ID, searchString)
 		}
-	} else {
-		return getAllCompletedTestsForStudent(session, tokenInfo.ID, searchString)
 	}
 
-	return []repositories.CompletedTest{}, nil
+	return getAllCompletedTestsForStudent(session, tokenInfo.ID, searchString)
 }
 
 func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, searchString string) ([]repositories.CompletedTest, error) {
@@ -389,4 +456,38 @@ func getUserFromTestQuery(record neo4j.Record, nodeName string) (repositories.Us
 		FirstName: firstName,
 		LastName:  lastName,
 	}, nil
+}
+
+func getNextID(session neo4j.Session, label string, IDProperty string) (int, error) {
+	query := fmt.Sprintf("MATCH (n:%s) RETURN max(n.%s) + 1 as next", label, IDProperty)
+	params := map[string]interface{}{}
+
+	nextID, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		records, err := tx.Run(query, params)
+		if err != nil {
+			return 0, err
+		}
+		for records.Next() {
+			nextID, err := helpers.GetIntParameterFromQuery(records.Record(), "next", true, true)
+			if err != nil {
+				return 0, err
+			}
+
+			return nextID, nil
+		}
+
+		return 0, nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return nextID.(int), nil
+}
+
+func generateTestTemplate(test repositories.Test) (string, error) {
+	// TODO generate template
+
+	return "https://i.pinimg.com/564x/24/4c/8b/244c8b25406a92dfba3fbfa1e803d824.jpg", nil
 }

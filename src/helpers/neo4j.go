@@ -18,3 +18,21 @@ func GetNeo4jSession(driver neo4j.Driver) (neo4j.Session, error) {
 		AccessMode: neo4j.AccessModeWrite,
 	})
 }
+
+func WriteTX(session neo4j.Session, query string, params map[string]interface{}) error {
+	_, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		result, err := tx.Run(query, params)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = result.Consume()
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	})
+
+	return err
+}
