@@ -57,15 +57,7 @@ func DeleteTest(session neo4j.Session, token string, testID int) error {
 	return nil
 }
 
-func GetTests(session neo4j.Session, path string, token string, onlyGraded bool, testID int, searchString string, subject string) ([]repositories.CompletedTest, error) {
-	// TODO
-
-	// if a test has no completions, only return the test itself
-
-	//search - check for similarity among title, subject
-	//subject - get tests for this subject
-	//only graded
-
+func GetTests(session neo4j.Session, path string, token string, testID int, searchString string) ([]repositories.CompletedTest, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil {
 		return []repositories.CompletedTest{}, helpers.InvalidTokenError(path, err)
@@ -73,16 +65,108 @@ func GetTests(session neo4j.Session, path string, token string, onlyGraded bool,
 
 	if tokenInfo.Label == teacherLabel {
 		if testID != helpers.EmptyIntParameter {
-			return getAllTestCompletionsQuery(session, testID)
+			return getAllCompletedTestsForTeacher(session, testID)
+		} else {
+			return getAllTestsForTeacher(session, tokenInfo.ID, searchString)
 		}
 	} else {
-
+		return getAllCompletedTestsForStudent(session, tokenInfo.ID, searchString)
 	}
 
 	return []repositories.CompletedTest{}, nil
 }
 
-func getAllTestCompletionsQuery(session neo4j.Session, testID int) ([]repositories.CompletedTest, error) {
+func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, searchString string) ([]repositories.CompletedTest, error) {
+	extraCondition := ""
+	if searchString != helpers.EmptyStringParameter {
+		value := 8
+		extraCondition = fmt.Sprintf(`
+			AND (apoc.text.distance(t.name, '%s') < %d OR apoc.text.distance(subj.name, '%s') < %d) 
+		`, searchString, value, searchString, value)
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (g:Group)<-[sg:MEMBER_OF]-(s:Student)-[st:COMPLETED]->(t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
+		WHERE s.ID = $studentID %s 
+		RETURN s.ID, s.email, s.firstName, s.lastName, g.gID, 
+				t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
+					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
+					p.ID, p.email, p.firstName, p.lastName, 
+				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback
+	`, extraCondition)
+
+	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		var results []repositories.CompletedTest
+		records, err := tx.Run(query, map[string]interface{}{"studentID": studentID})
+		if err != nil {
+			return []repositories.CompletedTest{}, err
+		}
+
+		for records.Next() {
+			record := records.Record()
+			completedTest, err := getCompletedTestFromTestQuery(record)
+			if err != nil {
+				return []repositories.CompletedTest{}, err
+			}
+
+			results = append(results, completedTest)
+		}
+
+		return results, nil
+	})
+
+	if err != nil {
+		return []repositories.CompletedTest{}, err
+	}
+
+	return testResults.([]repositories.CompletedTest), nil
+}
+
+func getAllTestsForTeacher(session neo4j.Session, teacherID int, searchString string) ([]repositories.CompletedTest, error) {
+	extraCondition := ""
+	if searchString != helpers.EmptyStringParameter {
+		value := 8
+		extraCondition = fmt.Sprintf(`
+			AND (apoc.text.distance(t.name, '%s') < %d OR apoc.text.distance(subj.name, '%s') < %d) 
+		`, searchString, value, searchString, value)
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (Student)-[st:COMPLETED]->(t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher)  
+		WHERE p.ID = $teacherID %s
+		RETURN t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
+					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
+					p.ID, p.email, p.firstName, p.lastName
+	`, extraCondition)
+
+	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		var results []repositories.CompletedTest
+		records, err := tx.Run(query, map[string]interface{}{"teacherID": teacherID})
+		if err != nil {
+			return []repositories.CompletedTest{}, err
+		}
+
+		for records.Next() {
+			record := records.Record()
+			test, err := getTestFromTestQuery(record)
+			if err != nil {
+				return []repositories.CompletedTest{}, err
+			}
+
+			results = append(results, repositories.CompletedTest{Test: test})
+		}
+
+		return results, nil
+	})
+
+	if err != nil {
+		return []repositories.CompletedTest{}, err
+	}
+
+	return testResults.([]repositories.CompletedTest), nil
+}
+
+func getAllCompletedTestsForTeacher(session neo4j.Session, testID int) ([]repositories.CompletedTest, error) {
 	query := `
 		MATCH (g:Group)<-[sg:MEMBER_OF]-(s:Student)-[st:COMPLETED]->(t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
 		WHERE t.testID = $testID 
@@ -102,125 +186,9 @@ func getAllTestCompletionsQuery(session neo4j.Session, testID int) ([]repositori
 
 		for records.Next() {
 			record := records.Record()
-
-			teacher, err := getTeacherFromTestQuery(record)
+			completedTest, err := getCompletedTestFromTestQuery(record)
 			if err != nil {
-				continue
-			}
-			testSubject, err := helpers.GetStringParameterFromQuery(record, "subj.name", true, true)
-			if err != nil {
-				continue
-			}
-			testName, err := helpers.GetStringParameterFromQuery(record, "t.name", true, true)
-			if err != nil {
-				continue
-			}
-			nrQuestions, err := helpers.GetIntParameterFromQuery(record, "t.nrQuestions", true, true)
-			if err != nil {
-				continue
-			}
-			nrAnswers, err := helpers.GetIntParameterFromQuery(record, "t.nrAnswers", true, true)
-			if err != nil {
-				continue
-			}
-			points, err := helpers.GetIntParameterFromQuery(record, "t.points", true, true)
-			if err != nil {
-				continue
-			}
-			exOfficioPoints, err := helpers.GetIntParameterFromQuery(record, "t.exOfficio", true, true)
-			if err != nil {
-				continue
-			}
-			multipleAnswersAllowed, err := helpers.GetBoolParameterFromQuery(record, "t.multipleAnswersAllowed", true, true)
-			if err != nil {
-				continue
-			}
-			enablePartialScoring, err := helpers.GetBoolParameterFromQuery(record, "t.enablePartialScoring", true, false)
-			if err != nil {
-				continue
-			}
-			mandatoryToPass, err := helpers.GetBoolParameterFromQuery(record, "t.mandatoryToPass", true, true)
-			if err != nil {
-				continue
-			}
-			templateURL, err := helpers.GetStringParameterFromQuery(record, "t.template", true, true)
-			if err != nil {
-				continue
-			}
-			gradeCount, err := helpers.GetIntParameterFromQuery(record, "nrTestsGraded", true, true)
-			if err != nil {
-				continue
-			}
-			answers, err := helpers.GetAnswerMapFromQuery(record, "t.answers", true, true)
-			if err != nil {
-				continue
-			}
-
-			test := repositories.Test{
-				ID:                     testID,
-				Subject:                testSubject,
-				Name:                   testName,
-				NrQuestions:            nrQuestions,
-				NrAnswerOptions:        nrAnswers,
-				TotalPoints:            points,
-				ExOfficioPoints:        exOfficioPoints,
-				MultipleAnswersAllowed: multipleAnswersAllowed,
-				EnablePartialScoring:   enablePartialScoring,
-				MandatoryToPass:        mandatoryToPass,
-				TemplateImageURL:       templateURL,
-				NrTestsGraded:          gradeCount,
-				Teacher:                teacher,
-				CorrectAnswers:         answers,
-			}
-
-			student, err := getStudentFromTestQuery(record)
-			if err != nil {
-				continue
-			}
-			completedTestURL, err := helpers.GetStringParameterFromQuery(record, "st.testImage", true, true)
-			if err != nil {
-				continue
-			}
-			gradedTestURL, err := helpers.GetStringParameterFromQuery(record, "st.gradedTestImage", true, false)
-			if err != nil {
-				continue
-			}
-			grade, err := helpers.GetIntParameterFromQuery(record, "st.grade", true, false)
-			if err != nil {
-				continue
-			}
-			gradeTimestamp, err := helpers.GetIntParameterFromQuery(record, "st.timestamp", true, false)
-			if err != nil {
-				continue
-			}
-			correctedGrade, err := helpers.GetIntParameterFromQuery(record, "st.correctedGrade", true, false)
-			if err != nil {
-				continue
-			}
-			correctedGradeTimestamp, err := helpers.GetIntParameterFromQuery(record, "st.correctedGradeTimestamp", true, false)
-			if err != nil {
-				continue
-			}
-			notification, err := helpers.GetStringParameterFromQuery(record, "st.notificationMessage", true, false)
-			if err != nil {
-				continue
-			}
-			feedback, err := helpers.GetStringParameterFromQuery(record, "st.feedback", true, false)
-			if err != nil {
-				continue
-			}
-
-			completedTest := repositories.CompletedTest{
-				Test:                    test,
-				TestImageURL:            completedTestURL,
-				GradedTestImageURL:      gradedTestURL,
-				Grade:                   grade,
-				GradeTimestamp:          gradeTimestamp,
-				CorrectedGrade:          correctedGrade,
-				CorrectedGradeTimestamp: correctedGradeTimestamp,
-				NotificationMessage:     notification,
-				Feedback:                feedback,
-				Author:                  student,
+				return []repositories.CompletedTest{}, err
 			}
 
 			results = append(results, completedTest)
@@ -234,6 +202,139 @@ func getAllTestCompletionsQuery(session neo4j.Session, testID int) ([]repositori
 	}
 
 	return testResults.([]repositories.CompletedTest), nil
+}
+
+func getCompletedTestFromTestQuery(record neo4j.Record) (repositories.CompletedTest, error) {
+	test, err := getTestFromTestQuery(record)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+
+	student, err := getStudentFromTestQuery(record)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	completedTestURL, err := helpers.GetStringParameterFromQuery(record, "st.testImage", true, true)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	gradedTestURL, err := helpers.GetStringParameterFromQuery(record, "st.gradedTestImage", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	grade, err := helpers.GetIntParameterFromQuery(record, "st.grade", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	gradeTimestamp, err := helpers.GetIntParameterFromQuery(record, "st.timestamp", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	correctedGrade, err := helpers.GetIntParameterFromQuery(record, "st.correctedGrade", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	correctedGradeTimestamp, err := helpers.GetIntParameterFromQuery(record, "st.correctedGradeTimestamp", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	notification, err := helpers.GetStringParameterFromQuery(record, "st.notificationMessage", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	feedback, err := helpers.GetStringParameterFromQuery(record, "st.feedback", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+
+	return repositories.CompletedTest{
+		Test:                    test,
+		TestImageURL:            completedTestURL,
+		GradedTestImageURL:      gradedTestURL,
+		Grade:                   grade,
+		GradeTimestamp:          gradeTimestamp,
+		CorrectedGrade:          correctedGrade,
+		CorrectedGradeTimestamp: correctedGradeTimestamp,
+		NotificationMessage:     notification,
+		Feedback:                feedback,
+		Author:                  student,
+	}, nil
+}
+
+func getTestFromTestQuery(record neo4j.Record) (repositories.Test, error) {
+	teacher, err := getTeacherFromTestQuery(record)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	testID, err := helpers.GetIntParameterFromQuery(record, "t.testID", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	testSubject, err := helpers.GetStringParameterFromQuery(record, "subj.name", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	testName, err := helpers.GetStringParameterFromQuery(record, "t.name", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	nrQuestions, err := helpers.GetIntParameterFromQuery(record, "t.nrQuestions", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	nrAnswers, err := helpers.GetIntParameterFromQuery(record, "t.nrAnswers", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	points, err := helpers.GetIntParameterFromQuery(record, "t.points", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	exOfficioPoints, err := helpers.GetIntParameterFromQuery(record, "t.exOfficio", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	multipleAnswersAllowed, err := helpers.GetBoolParameterFromQuery(record, "t.multipleAnswersAllowed", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	enablePartialScoring, err := helpers.GetBoolParameterFromQuery(record, "t.enablePartialScoring", true, false)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	mandatoryToPass, err := helpers.GetBoolParameterFromQuery(record, "t.mandatoryToPass", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	templateURL, err := helpers.GetStringParameterFromQuery(record, "t.template", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	gradeCount, err := helpers.GetIntParameterFromQuery(record, "nrTestsGraded", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+	answers, err := helpers.GetAnswerMapFromQuery(record, "t.answers", true, true)
+	if err != nil {
+		return repositories.Test{}, err
+	}
+
+	return repositories.Test{
+		ID:                     testID,
+		Subject:                testSubject,
+		Name:                   testName,
+		NrQuestions:            nrQuestions,
+		NrAnswerOptions:        nrAnswers,
+		TotalPoints:            points,
+		ExOfficioPoints:        exOfficioPoints,
+		MultipleAnswersAllowed: multipleAnswersAllowed,
+		EnablePartialScoring:   enablePartialScoring,
+		MandatoryToPass:        mandatoryToPass,
+		TemplateImageURL:       templateURL,
+		NrTestsGraded:          gradeCount,
+		Teacher:                teacher,
+		CorrectAnswers:         answers,
+	}, nil
 }
 
 func getStudentFromTestQuery(record neo4j.Record) (repositories.Student, error) {

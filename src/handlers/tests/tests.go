@@ -72,10 +72,6 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
-	onlyGraded, err := helpers.GetBoolParameter(r, repositories.OnlyGraded, false)
-	if err != nil {
-		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
-	}
 	testID, err := helpers.GetIntParameter(r, repositories.TestID, false)
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
@@ -84,12 +80,8 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
-	subject, err := helpers.GetStringParameter(r, repositories.Subject, false)
-	if err != nil {
-		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
-	}
 
-	tests, err := datasources.GetTests(session, path, token, onlyGraded, testID, searchString, subject)
+	tests, err := datasources.GetTests(session, path, token, testID, searchString)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
