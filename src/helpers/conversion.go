@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
@@ -14,20 +13,22 @@ func GetAnswerMapFromQuery(record neo4j.Record, key string, shouldCheck bool, ma
 		return map[int][]string{}, err
 	}
 
-	jsonString := strings.ReplaceAll(stringAnswers, "'", "\"")
-
-	var answers [][]string
-	err = json.Unmarshal([]byte(jsonString), &answers)
+	var answers map[int][]string
+	err = json.Unmarshal([]byte(stringAnswers), &answers)
 	if err != nil {
 		return map[int][]string{}, err
 	}
 
-	answerMap := make(map[int][]string, len(answers))
-	for index, answersForQuestion := range answers {
-		answerMap[index] = answersForQuestion
+	return answers, nil
+}
+
+func GetStringFromAnswerMap(answers map[int][]string) (string, error) {
+	stringAnswers, err := json.Marshal(answers)
+	if err != nil {
+		return "", err
 	}
 
-	return answerMap, nil
+	return string(stringAnswers), nil
 }
 
 func GetStringSliceFromInterfaceSlice(slice []interface{}) []string {

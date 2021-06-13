@@ -30,7 +30,7 @@ func HandleTestFeedback(w http.ResponseWriter, r *http.Request, logger *log.Logg
 	switch r.Method {
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
-	case http.MethodPut:
+	case http.MethodPost:
 		status, err = addFeedback(r, session, path)
 	default:
 		status = http.StatusBadRequest
@@ -72,7 +72,7 @@ func addFeedback(r *http.Request, session neo4j.Session, path string) (int, erro
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.AddFeedbackForTest(session, token, testID, feedback)
+	err = datasources.AddFeedbackForTest(session, path, token, testID, feedback)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}

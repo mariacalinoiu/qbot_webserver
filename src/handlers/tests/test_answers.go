@@ -2,7 +2,6 @@ package tests
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -76,7 +75,7 @@ func addAnswers(r *http.Request, session neo4j.Session, path string) (int, error
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.AddTestAnswers(session, token, testID, answers)
+	err = datasources.AddTestAnswers(session, path, token, testID, answers)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}
@@ -85,17 +84,10 @@ func addAnswers(r *http.Request, session neo4j.Session, path string) (int, error
 }
 
 func extractAnswers(r *http.Request) (map[int][]string, error) {
-	var unmarshalledAnswers map[int][]string
-
-	body, err := ioutil.ReadAll(r.Body)
+	test, err := extractTest(r)
 	if err != nil {
 		return map[int][]string{}, err
 	}
 
-	err = json.Unmarshal(body, &unmarshalledAnswers)
-	if err != nil {
-		return map[int][]string{}, err
-	}
-
-	return unmarshalledAnswers, nil
+	return test.CorrectAnswers, nil
 }

@@ -30,9 +30,9 @@ func HandleTestErrors(w http.ResponseWriter, r *http.Request, logger *log.Logger
 	switch r.Method {
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
-	case http.MethodPut:
-		status, err = signalError(r, session, path)
 	case http.MethodPost:
+		status, err = signalError(r, session, path)
+	case http.MethodPut:
 		status, err = overwriteGrade(r, session, path)
 	default:
 		status = http.StatusBadRequest
@@ -70,7 +70,7 @@ func signalError(r *http.Request, session neo4j.Session, path string) (int, erro
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.SignalErrorForTest(session, token, testID)
+	err = datasources.SignalErrorForTest(session, path, token, testID)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}

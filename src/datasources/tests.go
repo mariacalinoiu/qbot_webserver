@@ -9,16 +9,45 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func AddTestAnswers(session neo4j.Session, token string, testID int, answers map[int][]string) error {
-	// TODO
+func AddTestAnswers(session neo4j.Session, path string, token string, testID int, answers map[int][]string) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != teacherLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return nil
+	answerString, err := helpers.GetStringFromAnswerMap(answers)
+	if err != nil {
+		return err
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID}) 
+		SET t.answers = '%s'
+	`, answerString)
+	params := map[string]interface{}{
+		"teacherID": tokenInfo.ID,
+		"testID":    testID,
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
-func AddFeedbackForTest(session neo4j.Session, token string, testID int, feedback string) error {
-	// TODO
+func AddFeedbackForTest(session neo4j.Session, path string, token string, testID int, feedback string) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != teacherLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return nil
+	query := fmt.Sprintf(`
+		MATCH (t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID}) 
+		SET t.feedback = '%s'
+	`, feedback)
+	params := map[string]interface{}{
+		"teacherID": tokenInfo.ID,
+		"testID":    testID,
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
 func OverwriteGradeForTest(session neo4j.Session, token string, testID int, studentID int, newGrade int) error {
@@ -27,10 +56,23 @@ func OverwriteGradeForTest(session neo4j.Session, token string, testID int, stud
 	return nil
 }
 
-func SignalErrorForTest(session neo4j.Session, token string, testID int) error {
-	// TODO
+func SignalErrorForTest(session neo4j.Session, path string, token string, testID int) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil || tokenInfo.Label != studentLabel {
+		return helpers.InvalidTokenError(path, err)
+	}
 
-	return nil
+	query := `
+		MATCH (s:Student)-[st:COMPLETED]->(t:Test) 
+		WHERE s.ID = $studentID AND t.testID = $testID 
+		SET st.notificationMessage = "Grading error signaled for test!"
+	`
+	params := map[string]interface{}{
+		"studentID": tokenInfo.ID,
+		"testID":    testID,
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
 func GetNotificationTests(session neo4j.Session, token string) ([]repositories.CompletedTest, error) {
@@ -74,7 +116,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 		%s 
 		SET t.name='%s', t.nrQuestions=$nrQuestions, t.nrAnswers=$nrAnswers, t.points=$points, t.exOfficio=$exOfficio, 
 			t.multipleAnswersAllowed=$multipleAnswersAllowed, t.enablePartialScoring=$enablePartialScoring, t.mandatoryToPass=$mandatoryToPass,
-			t.template=$template, t.answers='[[]]'
+			t.template=$template 
 	`, queryPrefix, test.Name)
 
 	params := map[string]interface{}{
@@ -199,7 +241,8 @@ func getAllTestsForTeacher(session neo4j.Session, teacherID int, searchString st
 	}
 
 	query := fmt.Sprintf(`
-		MATCH (Student)-[st:COMPLETED]->(t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher)  
+		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
+		OPTIONAL MATCH (Student)-[st:COMPLETED]->(t:Test) 
 		WHERE p.ID = $teacherID %s
 		RETURN t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
