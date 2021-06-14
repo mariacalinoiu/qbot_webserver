@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/jung-kurt/gofpdf"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"gopkg.in/gographics/imagick.v2/imagick"
@@ -31,24 +35,24 @@ const (
 	a4width          = 210
 )
 
-func GenerateTestTemplate(test repositories.Test) (string, error) {
+func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Key string, logger *log.Logger) (string, error) {
 	// TODO generate template and save it to S3
+	filenamePrefix := strings.ReplaceAll(fmt.Sprintf("/tmp/%s_%s", test.Subject, test.Name), " ", "_")
+	filenamePDF := fmt.Sprintf("%s.pdf", filenamePrefix)
+	filenameJPG := fmt.Sprintf("%s.jpg", filenamePrefix)
 
-	filename, err := createLocalPDF(test)
+	err := createLocalPDF(test, filenamePDF)
 	if err != nil {
 		return "", err
 	}
 
-	err = ConvertPdfToJpg(filename)
+	err = ConvertPdfToJpg(filenamePDF, filenameJPG)
 	if err != nil {
 		return "", err
 	}
-	// convert file to JPEG
-	// save to S3
-	// delete from local
-	// return S3 link
+	defer deleteFromLocal(filenamePDF, filenameJPG, logger)
 
-	return "https://i.pinimg.com/564x/24/4c/8b/244c8b25406a92dfba3fbfa1e803d824.jpg", nil
+	return uploadToS3(s3Bucket, s3Key, filenameJPG)
 }
 
 func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest) {
@@ -75,7 +79,7 @@ func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, te
 	//}
 }
 
-func ConvertPdfToJpg(filename string) error {
+func ConvertPdfToJpg(filenamePDF string, filenameJPG string) error {
 	imagick.Initialize()
 	defer imagick.Terminate()
 
@@ -85,7 +89,7 @@ func ConvertPdfToJpg(filename string) error {
 	if err := mw.SetResolution(300, 300); err != nil {
 		return err
 	}
-	if err := mw.ReadImage(fmt.Sprintf("%s.pdf", filename)); err != nil {
+	if err := mw.ReadImage(filenamePDF); err != nil {
 		return err
 	}
 	if err := mw.SetImageAlphaChannel(imagick.ALPHA_CHANNEL_FLATTEN); err != nil {
@@ -99,12 +103,10 @@ func ConvertPdfToJpg(filename string) error {
 		return err
 	}
 
-	return mw.WriteImage(fmt.Sprintf("/tmp/%s.jpg", filename))
+	return mw.WriteImage(filenameJPG)
 }
 
-func createLocalPDF(test repositories.Test) (string, error) {
-	filename := strings.ReplaceAll(fmt.Sprintf("%s_%s", test.Subject, test.Name), " ", "_")
-
+func createLocalPDF(test repositories.Test, filename string) error {
 	header := make([]string, test.NrAnswerOptions+1)
 	gridSizes := make([]uint, test.NrAnswerOptions+1)
 	header[0] = "Nr."
@@ -202,10 +204,39 @@ func createLocalPDF(test repositories.Test) (string, error) {
 		pdf.Ln(-1)
 	}
 
-	err := pdf.OutputFileAndClose(fmt.Sprintf("%s.pdf", filename))
+	return pdf.OutputFileAndClose(filename)
+}
+
+func uploadToS3(s3Bucket string, s3Key string, filename string) (string, error) {
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String("eu-central-1")},
+	))
+
+	uploader := s3manager.NewUploader(sess)
+
+	f, err := os.Open(filename)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to open file %q, %v", filename, err)
 	}
 
-	return filename, nil
+	result, err := uploader.Upload(&s3manager.UploadInput{
+		Bucket: aws.String(s3Bucket),
+		Key:    aws.String(filename),
+		Body:   f,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to upload file, %v", err)
+	}
+	return aws.StringValue(&result.Location), nil
+}
+
+func deleteFromLocal(filenamePDF string, filenameJPG string, logger *log.Logger) {
+	err := os.Remove(filenamePDF)
+	if err != nil {
+		logger.Printf("could not delete %s: %s", filenamePDF, err.Error())
+	}
+	err = os.Remove(filenameJPG)
+	if err != nil {
+		logger.Printf("could not delete %s: %s", filenameJPG, err.Error())
+	}
 }

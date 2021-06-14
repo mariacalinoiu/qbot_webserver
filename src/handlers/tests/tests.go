@@ -13,7 +13,7 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
+func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string, s3Bucket string, s3Key string) {
 	var response []byte
 	var status int
 	var err error
@@ -34,7 +34,7 @@ func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 	case http.MethodGet:
 		response, status, err = getTests(r, session, path)
 	case http.MethodPost, http.MethodPut:
-		status, err = addTest(r, session, path, logger)
+		status, err = addTest(r, session, path, s3Bucket, s3Key, logger)
 	case http.MethodDelete:
 		status, err = deleteTest(r, session, path)
 	default:
@@ -93,7 +93,7 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 	return response, http.StatusOK, nil
 }
 
-func addTest(r *http.Request, session neo4j.Session, path string, logger *log.Logger) (int, error) {
+func addTest(r *http.Request, session neo4j.Session, path string, s3Bucket string, s3Key string, logger *log.Logger) (int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
@@ -103,7 +103,7 @@ func addTest(r *http.Request, session neo4j.Session, path string, logger *log.Lo
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
 
-	err = datasources.AddTest(session, path, token, test)
+	err = datasources.AddTest(session, path, token, test, s3Bucket, s3Key, logger)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.AddError(path, err)
 	}
