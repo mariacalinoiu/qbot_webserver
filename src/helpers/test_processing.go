@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/jung-kurt/gofpdf"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
@@ -34,6 +35,8 @@ const (
 	spacingSmall     = 12
 	a4height         = 297
 	a4width          = 210
+
+	testTemplatesFolder = "test_templates"
 )
 
 func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Key string, logger *log.Logger) (string, error) {
@@ -211,26 +214,28 @@ func createLocalPDF(test repositories.Test, filename string) error {
 func uploadToS3(s3Bucket string, s3Key string, filename string) (string, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region:      aws.String("eu-central-1"),
-		Credentials: credentials.NewSharedCredentials("", "default"),
+		Credentials: credentials.NewSharedCredentials("", "diz"),
 	}))
 
 	uploader := s3manager.NewUploader(sess)
-
-	value, err := sess.Config.Credentials.Get()
 
 	f, err := os.Open(filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file %q, %v", filename, err)
 	}
 
+	filename = strings.Split(filename, "/")[2]
+
 	result, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String(s3Bucket),
-		Key:    aws.String(value.AccessKeyID),
+		Bucket: aws.String("dissertation-qbot"),
+		Key:    aws.String(fmt.Sprintf("%s/%s", testTemplatesFolder, filename)),
 		Body:   f,
+		ACL:    aws.String(s3.ObjectCannedACLPublicRead),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file, %v", err)
 	}
+
 	return aws.StringValue(&result.Location), nil
 }
 
