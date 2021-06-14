@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/johnfercher/maroto/pkg/consts"
-	"github.com/johnfercher/maroto/pkg/pdf"
-	"github.com/johnfercher/maroto/pkg/props"
+	"github.com/jung-kurt/gofpdf"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 
 	"qbot_webserver/src/repositories"
@@ -18,22 +16,27 @@ const (
 	GradingErrorNotification   = "Test requires correction!"
 	TestGradedNotification     = "Test has been graded!"
 	TestCorrectionNotification = "Test has been corrected!"
+
+	margin           = 25
+	headerCellWidth  = 65
+	headerCellHeight = 7
+	headerLineHeight = 7
+	tableCellSize    = 10
+	spacingLarge     = 25
+	spacingSmall     = 12
 )
 
 func GenerateTestTemplate(test repositories.Test) (string, error) {
 	// TODO generate template and save it to S3
 
-	filename := strings.ReplaceAll(test.Name, " ", "_")
+	filename := strings.ReplaceAll(fmt.Sprintf("%s_%s.pdf", test.Subject, test.Name), " ", "_")
 
 	header := make([]string, test.NrAnswerOptions+1)
 	gridSizes := make([]uint, test.NrAnswerOptions+1)
 	header[0] = "Nr."
 	gridSizes[0] = 1
+
 	for i := 1; i <= test.NrAnswerOptions; i++ {
-		//header[i] = "|"
-		//gridSizes[i] = 1
-		//header[i+1] = string(rune('A' + i/2))
-		//gridSizes[i+1] = 1
 		header[i] = string(rune('A' + i - 1))
 		gridSizes[i] = 1
 	}
@@ -48,123 +51,52 @@ func GenerateTestTemplate(test repositories.Test) (string, error) {
 		contents[i] = row
 	}
 
-	fmt.Printf("%+v\n", contents)
-	fmt.Printf("%+v\n", gridSizes)
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(margin, margin, margin)
+	pdf.AddPage()
+	pdf.SetFont("Times", "B", 14)
+	pdf.Cell(headerCellWidth, headerCellHeight, "First Name:")
+	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
+	pdf.Ln(headerLineHeight)
+	pdf.Cell(headerCellWidth, headerCellHeight, "Last Name:")
+	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
+	pdf.Ln(headerLineHeight)
+	pdf.Cell(headerCellWidth, headerCellHeight, "University e-mail address:")
+	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
+	pdf.Ln(headerLineHeight)
+	pdf.Cell(headerCellWidth, headerCellHeight, "Year:")
+	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
+	pdf.Ln(headerLineHeight)
+	pdf.Cell(headerCellWidth, headerCellHeight, "Group:")
+	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
+	pdf.Ln(headerLineHeight)
+	pdf.Cell(headerCellWidth, headerCellHeight, "Specialization:")
+	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
 
-	m := pdf.NewMaroto(consts.Portrait, consts.A4)
-	m.SetPageMargins(10, 15, 10)
+	pdf.Ln(spacingLarge)
+	pdf.SetFont("Times", "B", 20)
+	pdf.CellFormat(0, 10, test.Name, "", 0, "C", false, 0, "")
+	pdf.Ln(spacingSmall)
+	pdf.SetFont("Times", "B", 17)
+	pdf.CellFormat(0, 10, test.Subject, "", 0, "C", false, 0, "")
+	pdf.Ln(spacingLarge)
 
-	m.RegisterHeader(func() {
-		m.Row(65, func() {
-			m.Col(4, func() {
-				m.Text("First Name:", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   5,
-				})
-				m.Text("Last Name:", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   12,
-				})
-				m.Text("University e-mail address:", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   19,
-				})
-				m.Text("Year:", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   26,
-				})
-				m.Text("Group:", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   33,
-				})
-				m.Text("Specialization:", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   40,
-				})
-			})
-			m.Col(5, func() {
-				m.Text("_____________________________________", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   5,
-				})
-				m.Text("_____________________________________", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   12,
-				})
-				m.Text("_____________________________________", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   19,
-				})
-				m.Text("_____________________________________", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   26,
-				})
-				m.Text("_____________________________________", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   33,
-				})
-				m.Text("_____________________________________", props.Text{
-					Size:  12,
-					Style: consts.Bold,
-					Align: consts.Left,
-					Top:   40,
-				})
-			})
-		})
+	pdf.SetFont("Times", "B", 16)
+	pdf.SetFillColor(255, 255, 255)
+	for _, str := range header {
+		pdf.CellFormat(tableCellSize, tableCellSize, str, "1", 0, "C", true, 0, "")
+	}
 
-		m.Row(40, func() {
-			m.Col(0, func() {
-				m.Text(test.Name, props.Text{
-					Size:  18,
-					Style: consts.Bold,
-					Align: consts.Center,
-					Top:   4,
-				})
-				m.Text(test.Subject, props.Text{
-					Size:  15,
-					Align: consts.Center,
-					Top:   15,
-				})
-			})
-		})
-	})
+	pdf.Ln(-1)
 
-	m.TableList(header, contents, props.TableList{
-		ContentProp: props.TableListContent{
-			Family:    consts.Arial,
-			GridSizes: gridSizes,
-		},
-		HeaderProp: props.TableListContent{
-			Family:    consts.Arial,
-			GridSizes: gridSizes,
-		},
-		Align: consts.Right,
-		Line:  true,
-	})
+	for _, line := range contents {
+		for _, str := range line {
+			pdf.CellFormat(tableCellSize, tableCellSize, str, "1", 0, "C", true, 0, "")
+		}
+		pdf.Ln(-1)
+	}
 
-	_ = m.OutputFileAndClose(filename)
+	_ = pdf.OutputFileAndClose(filename)
 	//if err != nil {
 	//	return "", err
 	//}
