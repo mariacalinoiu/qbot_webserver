@@ -33,8 +33,7 @@ func HandleObjectives(w http.ResponseWriter, r *http.Request, logger *log.Logger
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodGet:
 		response, status, err = getObjectives(r, session, path)
-	case http.MethodPost:
-	case http.MethodPut:
+	case http.MethodPost, http.MethodPut:
 		status, err = setObjective(r, session, path)
 	default:
 		status = http.StatusBadRequest

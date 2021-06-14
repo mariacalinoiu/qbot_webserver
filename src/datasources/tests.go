@@ -129,6 +129,8 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 
 	templateURL, err := helpers.GenerateTestTemplate(test)
 
+	return nil
+
 	query := fmt.Sprintf(`
 		%s 
 		SET t.name='%s', t.nrQuestions=$nrQuestions, t.nrAnswers=$nrAnswers, t.points=$points, t.exOfficio=$exOfficio, 
