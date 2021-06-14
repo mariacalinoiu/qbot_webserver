@@ -123,7 +123,7 @@ func main() {
 	logger := log.New(os.Stdout, "", 0)
 	ip := "bolt://3.125.35.149"
 	s3Bucket := "dissertation-qbot"
-	s3Key := ""
+	s3Key := "key-06f2d17d5f58e0d36"
 
 	driver, err := handlers2.ConnectNeo4j(ip, "neo4j", "mariairene")
 	if err != nil {

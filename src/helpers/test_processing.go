@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/jung-kurt/gofpdf"
@@ -209,10 +210,13 @@ func createLocalPDF(test repositories.Test, filename string) error {
 
 func uploadToS3(s3Bucket string, s3Key string, filename string) (string, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
-		Region: aws.String("eu-central-1")},
-	))
+		Region:      aws.String("eu-central-1"),
+		Credentials: credentials.NewSharedCredentials("", "default"),
+	}))
 
 	uploader := s3manager.NewUploader(sess)
+
+	value, err := sess.Config.Credentials.Get()
 
 	f, err := os.Open(filename)
 	if err != nil {
@@ -221,7 +225,7 @@ func uploadToS3(s3Bucket string, s3Key string, filename string) (string, error) 
 
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(s3Bucket),
-		Key:    aws.String(filename),
+		Key:    aws.String(value.AccessKeyID),
 		Body:   f,
 	})
 	if err != nil {
