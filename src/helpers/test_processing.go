@@ -85,33 +85,25 @@ func ConvertPdfToJpg(filename string) error {
 	if err := mw.SetResolution(300, 300); err != nil {
 		return err
 	}
-
 	if err := mw.ReadImage(fmt.Sprintf("%s.pdf", filename)); err != nil {
 		return err
 	}
-
 	if err := mw.SetImageAlphaChannel(imagick.ALPHA_CHANNEL_FLATTEN); err != nil {
 		return err
 	}
-
 	if err := mw.SetCompressionQuality(95); err != nil {
 		return err
 	}
-
 	mw.SetIteratorIndex(0)
-
 	if err := mw.SetFormat("jpg"); err != nil {
 		return err
 	}
 
-	return mw.WriteImage(fmt.Sprintf("%s.jpg", filename))
+	return mw.WriteImage(fmt.Sprintf("/tmp/%s.jpg", filename))
 }
 
 func createLocalPDF(test repositories.Test) (string, error) {
 	filename := strings.ReplaceAll(fmt.Sprintf("%s_%s", test.Subject, test.Name), " ", "_")
-
-	test.NrQuestions = 36
-	test.NrAnswerOptions = 5
 
 	header := make([]string, test.NrAnswerOptions+1)
 	gridSizes := make([]uint, test.NrAnswerOptions+1)
