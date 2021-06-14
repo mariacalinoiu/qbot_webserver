@@ -9,6 +9,7 @@ import (
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"gopkg.in/gographics/imagick.v2/imagick"
 
 	"qbot_webserver/src/repositories"
 )
@@ -33,7 +34,81 @@ const (
 func GenerateTestTemplate(test repositories.Test) (string, error) {
 	// TODO generate template and save it to S3
 
-	filename := strings.ReplaceAll(fmt.Sprintf("%s_%s.pdf", test.Subject, test.Name), " ", "_")
+	filename, err := createLocalPDF(test)
+	if err != nil {
+		return "", err
+	}
+
+	err = ConvertPdfToJpg(filename)
+	if err != nil {
+		return "", err
+	}
+	// convert file to JPEG
+	// save to S3
+	// delete from local
+	// return S3 link
+
+	return "https://i.pinimg.com/564x/24/4c/8b/244c8b25406a92dfba3fbfa1e803d824.jpg", nil
+}
+
+func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest) {
+	// TODO save test image to S3, call Python script to grade, save graded image to S3, run query below
+
+	//query := fmt.Sprintf(`
+	//	MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
+	//	SET st.grade = $grade, st.timestamp = $timestamp, st.gradedTestImage = $gradedTestImage,
+	//			st.testImage = $testImage, st.notificationMessage = '%s'
+	//`, TestGradedNotification)
+	//params := map[string]interface{}{
+	//	"studentID":       studentID,
+	//	"testID":          test.ID,
+	//	"teacherID":       teacherID,
+	//	"grade":           grade,
+	//	"timestamp":       time.Now().Unix(),
+	//	"gradedTestImage": gradedImageURL,
+	//	"testImage":       testImageURL,
+	//}
+	//
+	//err := helpers.WriteTX(session, query, params)
+	//if err != nil {
+	//	logger.Printf("error grading test %d: %s", test.ID, err.Error())
+	//}
+}
+
+func ConvertPdfToJpg(filename string) error {
+	imagick.Initialize()
+	defer imagick.Terminate()
+
+	mw := imagick.NewMagickWand()
+	defer mw.Destroy()
+
+	if err := mw.SetResolution(300, 300); err != nil {
+		return err
+	}
+
+	if err := mw.ReadImage(fmt.Sprintf("%s.pdf", filename)); err != nil {
+		return err
+	}
+
+	if err := mw.SetImageAlphaChannel(imagick.ALPHA_CHANNEL_FLATTEN); err != nil {
+		return err
+	}
+
+	if err := mw.SetCompressionQuality(95); err != nil {
+		return err
+	}
+
+	mw.SetIteratorIndex(0)
+
+	if err := mw.SetFormat("jpg"); err != nil {
+		return err
+	}
+
+	return mw.WriteImage(fmt.Sprintf("%s.jpg", filename))
+}
+
+func createLocalPDF(test repositories.Test) (string, error) {
+	filename := strings.ReplaceAll(fmt.Sprintf("%s_%s", test.Subject, test.Name), " ", "_")
 
 	test.NrQuestions = 36
 	test.NrAnswerOptions = 5
@@ -135,34 +210,10 @@ func GenerateTestTemplate(test repositories.Test) (string, error) {
 		pdf.Ln(-1)
 	}
 
-	_ = pdf.OutputFileAndClose(filename)
-	//if err != nil {
-	//	return "", err
-	//}
+	err := pdf.OutputFileAndClose(fmt.Sprintf("%s.pdf", filename))
+	if err != nil {
+		return "", err
+	}
 
-	return "https://i.pinimg.com/564x/24/4c/8b/244c8b25406a92dfba3fbfa1e803d824.jpg", nil
-}
-
-func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest) {
-	// TODO save test image to S3, call Python script to grade, save graded image to S3, run query below
-
-	//query := fmt.Sprintf(`
-	//	MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
-	//	SET st.grade = $grade, st.timestamp = $timestamp, st.gradedTestImage = $gradedTestImage,
-	//			st.testImage = $testImage, st.notificationMessage = '%s'
-	//`, TestGradedNotification)
-	//params := map[string]interface{}{
-	//	"studentID":       studentID,
-	//	"testID":          test.ID,
-	//	"teacherID":       teacherID,
-	//	"grade":           grade,
-	//	"timestamp":       time.Now().Unix(),
-	//	"gradedTestImage": gradedImageURL,
-	//	"testImage":       testImageURL,
-	//}
-	//
-	//err := helpers.WriteTX(session, query, params)
-	//if err != nil {
-	//	logger.Printf("error grading test %d: %s", test.ID, err.Error())
-	//}
+	return filename, nil
 }
