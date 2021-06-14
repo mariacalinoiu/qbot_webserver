@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 
@@ -18,18 +19,24 @@ const (
 	TestCorrectionNotification = "Test has been corrected!"
 
 	margin           = 25
+	topMargin        = 20
 	headerCellWidth  = 65
 	headerCellHeight = 7
 	headerLineHeight = 7
-	tableCellSize    = 10
+	tableCellSize    = 8
 	spacingLarge     = 25
 	spacingSmall     = 12
+	a4height         = 297
+	a4width          = 210
 )
 
 func GenerateTestTemplate(test repositories.Test) (string, error) {
 	// TODO generate template and save it to S3
 
 	filename := strings.ReplaceAll(fmt.Sprintf("%s_%s.pdf", test.Subject, test.Name), " ", "_")
+
+	test.NrQuestions = 36
+	test.NrAnswerOptions = 5
 
 	header := make([]string, test.NrAnswerOptions+1)
 	gridSizes := make([]uint, test.NrAnswerOptions+1)
@@ -52,7 +59,7 @@ func GenerateTestTemplate(test repositories.Test) (string, error) {
 	}
 
 	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(margin, margin, margin)
+	pdf.SetMargins(margin, topMargin, margin)
 	pdf.AddPage()
 	pdf.SetFont("Times", "B", 14)
 	pdf.Cell(headerCellWidth, headerCellHeight, "First Name:")
@@ -81,18 +88,50 @@ func GenerateTestTemplate(test repositories.Test) (string, error) {
 	pdf.CellFormat(0, 10, test.Subject, "", 0, "C", false, 0, "")
 	pdf.Ln(spacingLarge)
 
-	pdf.SetFont("Times", "B", 16)
+	pdf.SetFont("Times", "B", 14)
 	pdf.SetFillColor(255, 255, 255)
-	for _, str := range header {
-		pdf.CellFormat(tableCellSize, tableCellSize, str, "1", 0, "C", true, 0, "")
+	tableWidth := float64(0)
+	for index, str := range header {
+		width := float64(tableCellSize)
+		if index == 0 {
+			width = tableCellSize * 2
+		}
+		pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
+		tableWidth += width
+	}
+	spaceBetweenTables := a4width - 2*margin - 2*tableWidth
+	pdf.Cell(spaceBetweenTables, tableCellSize, "")
+	for index, str := range header {
+		width := float64(tableCellSize)
+		if index == 0 {
+			width = tableCellSize * 2
+		}
+		pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
 	}
 
 	pdf.Ln(-1)
 
-	for _, line := range contents {
-		for _, str := range line {
-			pdf.CellFormat(tableCellSize, tableCellSize, str, "1", 0, "C", true, 0, "")
+	nrRows := int(math.Ceil(float64(test.NrQuestions) / float64(2)))
+
+	for questionNr := 0; questionNr < nrRows; questionNr++ {
+		for index, str := range contents[questionNr] {
+			width := float64(tableCellSize)
+			if index == 0 {
+				width = tableCellSize * 2
+			}
+			pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
 		}
+		pdf.Cell(spaceBetweenTables, tableCellSize, "")
+		if nrRows+questionNr < len(contents) {
+			for index, str := range contents[nrRows+questionNr] {
+				width := float64(tableCellSize)
+				if index == 0 {
+					width = tableCellSize * 2
+				}
+				pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
+			}
+		}
+
 		pdf.Ln(-1)
 	}
 
