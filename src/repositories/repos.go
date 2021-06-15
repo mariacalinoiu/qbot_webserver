@@ -10,7 +10,6 @@ const (
 	NewGrade       = "newGrade"
 	Feedback       = "feedback"
 	ForUserOnly    = "forUserOnly"
-	OnlyGraded     = "onlyGraded"
 	Search         = "search"
 )
 

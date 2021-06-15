@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
-	"qbot_webserver/src/handlers/spinneritems"
-	"qbot_webserver/src/handlers/tests"
-	handlers2 "qbot_webserver/src/helpers"
 
 	"qbot_webserver/src/handlers"
+	"qbot_webserver/src/handlers/spinneritems"
+	"qbot_webserver/src/handlers/tests"
+	helpers "qbot_webserver/src/helpers"
 )
 
 type server struct {
@@ -112,7 +112,12 @@ func newServer(driver neo4j.Driver, s3Bucket string, s3Region string, s3Profile 
 	)
 	s.mux.HandleFunc("/objectives",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleObjectives(w, r, s.logger, driver, "objective")
+			handlers.HandleObjectives(w, r, s.logger, driver, "objectives")
+		},
+	)
+	s.mux.HandleFunc("/users",
+		func(w http.ResponseWriter, r *http.Request) {
+			handlers.HandleUsers(w, r, s.logger, driver, "users")
 		},
 	)
 
@@ -126,7 +131,7 @@ func main() {
 	s3Profile := "diz"
 	s3Region := "eu-central-1"
 
-	driver, err := handlers2.ConnectNeo4j(ip, "neo4j", "mariairene")
+	driver, err := helpers.ConnectNeo4j(ip, "neo4j", "mariairene")
 	if err != nil {
 		logger.Println(fmt.Sprintf("error connecting to Neo4j: %s", err))
 	} else {
