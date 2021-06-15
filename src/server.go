@@ -40,18 +40,18 @@ func logWith(logger *log.Logger) option {
 	}
 }
 
-func setup(logger *log.Logger, driver neo4j.Driver, s3Bucket string, s3Key string) *http.Server {
-	server := newServer(driver, s3Bucket, s3Key, logWith(logger))
+func setup(logger *log.Logger, driver neo4j.Driver, s3Bucket string, s3Profile string) *http.Server {
+	server := newServer(driver, s3Bucket, s3Profile, logWith(logger))
 	return &http.Server{
 		Addr:         ":8081",
 		Handler:      server,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  5 * time.Minute,
+		WriteTimeout: 5 * time.Minute,
 		IdleTimeout:  600 * time.Second,
 	}
 }
 
-func newServer(driver neo4j.Driver, s3Bucket string, s3Key string, options ...option) *server {
+func newServer(driver neo4j.Driver, s3Bucket string, s3Profile string, options ...option) *server {
 	s := &server{logger: log.New(ioutil.Discard, "", 0)}
 
 	for _, o := range options {
@@ -107,7 +107,7 @@ func newServer(driver neo4j.Driver, s3Bucket string, s3Key string, options ...op
 	)
 	s.mux.HandleFunc("/tests",
 		func(w http.ResponseWriter, r *http.Request) {
-			tests.HandleTests(w, r, s.logger, driver, "tests", s3Bucket, s3Key)
+			tests.HandleTests(w, r, s.logger, driver, "tests", s3Bucket, s3Profile)
 		},
 	)
 	s.mux.HandleFunc("/objectives",
@@ -123,7 +123,7 @@ func main() {
 	logger := log.New(os.Stdout, "", 0)
 	ip := "bolt://3.125.35.149"
 	s3Bucket := "dissertation-qbot"
-	s3Key := "key-06f2d17d5f58e0d36"
+	s3Profile := "diz"
 
 	driver, err := handlers2.ConnectNeo4j(ip, "neo4j", "mariairene")
 	if err != nil {
@@ -132,7 +132,7 @@ func main() {
 		logger.Println("connected to Neo4j")
 	}
 
-	hs := setup(logger, driver, s3Bucket, s3Key)
+	hs := setup(logger, driver, s3Bucket, s3Profile)
 
 	logger.Printf("Listening on http://localhost%s\n", hs.Addr)
 	go func() {

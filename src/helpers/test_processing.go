@@ -39,8 +39,7 @@ const (
 	testTemplatesFolder = "test_templates"
 )
 
-func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Key string, logger *log.Logger) (string, error) {
-	// TODO generate template and save it to S3
+func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Profile string, logger *log.Logger) (string, error) {
 	filenamePrefix := strings.ReplaceAll(fmt.Sprintf("/tmp/%s_%s", test.Subject, test.Name), " ", "_")
 	filenamePDF := fmt.Sprintf("%s.pdf", filenamePrefix)
 	filenameJPG := fmt.Sprintf("%s.jpg", filenamePrefix)
@@ -50,13 +49,13 @@ func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Key string,
 		return "", err
 	}
 
-	err = ConvertPdfToJpg(filenamePDF, filenameJPG)
+	err = convertPdfToJPG(filenamePDF, filenameJPG)
 	if err != nil {
 		return "", err
 	}
 	defer deleteFromLocal(filenamePDF, filenameJPG, logger)
 
-	return uploadToS3(s3Bucket, s3Key, filenameJPG)
+	return uploadToS3(s3Bucket, s3Profile, filenameJPG, testTemplatesFolder)
 }
 
 func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest) {
@@ -83,7 +82,7 @@ func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, te
 	//}
 }
 
-func ConvertPdfToJpg(filenamePDF string, filenameJPG string) error {
+func convertPdfToJPG(filenamePDF string, filenameJPG string) error {
 	imagick.Initialize()
 	defer imagick.Terminate()
 
@@ -211,10 +210,10 @@ func createLocalPDF(test repositories.Test, filename string) error {
 	return pdf.OutputFileAndClose(filename)
 }
 
-func uploadToS3(s3Bucket string, s3Key string, filename string) (string, error) {
+func uploadToS3(s3Bucket string, s3Profile string, filename string, folder string) (string, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region:      aws.String("eu-central-1"),
-		Credentials: credentials.NewSharedCredentials("", "diz"),
+		Credentials: credentials.NewSharedCredentials("", s3Profile),
 	}))
 
 	uploader := s3manager.NewUploader(sess)
@@ -224,11 +223,12 @@ func uploadToS3(s3Bucket string, s3Key string, filename string) (string, error) 
 		return "", fmt.Errorf("failed to open file %q, %v", filename, err)
 	}
 
-	filename = strings.Split(filename, "/")[2]
+	split := strings.Split(filename, "/")
+	filename = split[len(split)-1]
 
 	result, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String("dissertation-qbot"),
-		Key:    aws.String(fmt.Sprintf("%s/%s", testTemplatesFolder, filename)),
+		Bucket: aws.String(s3Bucket),
+		Key:    aws.String(fmt.Sprintf("%s/%s", folder, filename)),
 		Body:   f,
 		ACL:    aws.String(s3.ObjectCannedACLPublicRead),
 	})

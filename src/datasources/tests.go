@@ -104,7 +104,7 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 	return nil
 }
 
-func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Key string, logger *log.Logger) error {
+func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Profile string, logger *log.Logger) error {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil || tokenInfo.Label != teacherLabel {
 		return helpers.InvalidTokenError(path, err)
@@ -127,12 +127,9 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 		`
 	}
 
-	templateURL, err := helpers.GenerateTestTemplate(test, s3Bucket, s3Key, logger)
+	templateURL, err := helpers.GenerateTestTemplate(test, s3Bucket, s3Profile, logger)
 
-	fmt.Println(templateURL)
-	fmt.Println(err)
-
-	return nil
+	logger.Printf("generated template for test %d at %s\n", testID, templateURL)
 
 	query := fmt.Sprintf(`
 		%s 
