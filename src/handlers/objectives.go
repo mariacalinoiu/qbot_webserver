@@ -74,7 +74,7 @@ func getObjectives(r *http.Request, session neo4j.Session, path string) ([]byte,
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	objective, err := datasources.GetObjectives(session, token, subject)
+	objective, err := datasources.GetObjectives(session, path, token, subject)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
@@ -101,7 +101,7 @@ func setObjective(r *http.Request, session neo4j.Session, path string) (int, err
 		return http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	err = datasources.AddObjective(session, token, subject, objective)
+	err = datasources.AddObjective(session, path, token, subject, objective)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}

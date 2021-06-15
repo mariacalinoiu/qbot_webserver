@@ -39,7 +39,7 @@ const (
 	testTemplatesFolder = "test_templates"
 )
 
-func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Profile string, logger *log.Logger) (string, error) {
+func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) (string, error) {
 	filenamePrefix := strings.ReplaceAll(fmt.Sprintf("/tmp/%s_%s", test.Subject, test.Name), " ", "_")
 	filenamePDF := fmt.Sprintf("%s.pdf", filenamePrefix)
 	filenameJPG := fmt.Sprintf("%s.jpg", filenamePrefix)
@@ -55,11 +55,11 @@ func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Profile str
 	}
 	defer deleteFromLocal(filenamePDF, filenameJPG, logger)
 
-	return uploadToS3(s3Bucket, s3Profile, filenameJPG, testTemplatesFolder)
+	return uploadToS3(s3Bucket, s3Region, s3Profile, filenameJPG, testTemplatesFolder)
 }
 
 func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest) {
-	// TODO save test image to S3, call Python script to grade, save graded image to S3, run query below
+	// TODO save test image to S3, call Python script to grade, save graded image to S3, run query below and MERGE relationship
 
 	//query := fmt.Sprintf(`
 	//	MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
@@ -210,9 +210,9 @@ func createLocalPDF(test repositories.Test, filename string) error {
 	return pdf.OutputFileAndClose(filename)
 }
 
-func uploadToS3(s3Bucket string, s3Profile string, filename string, folder string) (string, error) {
+func uploadToS3(s3Bucket string, s3Region string, s3Profile string, filename string, folder string) (string, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
-		Region:      aws.String("eu-central-1"),
+		Region:      aws.String(s3Region),
 		Credentials: credentials.NewSharedCredentials("", s3Profile),
 	}))
 

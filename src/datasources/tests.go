@@ -104,7 +104,7 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 	return nil
 }
 
-func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Profile string, logger *log.Logger) error {
+func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) error {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil || tokenInfo.Label != teacherLabel {
 		return helpers.InvalidTokenError(path, err)
@@ -117,7 +117,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 			MATCH (t:Test {testID:$testID}) 
 		`
 	} else {
-		testID, err = getNextID(session, "Test", "testID")
+		testID, err = getNextNodeID(session, "Test", "testID")
 		if err != nil {
 			return err
 		}
@@ -127,7 +127,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 		`
 	}
 
-	templateURL, err := helpers.GenerateTestTemplate(test, s3Bucket, s3Profile, logger)
+	templateURL, err := helpers.GenerateTestTemplate(test, s3Bucket, s3Region, s3Profile, logger)
 
 	logger.Printf("generated template for test %d at %s\n", testID, templateURL)
 
@@ -220,16 +220,20 @@ func GetTests(session neo4j.Session, path string, token string, testID int, sear
 		}
 	}
 
-	return getAllCompletedTestsForStudent(session, tokenInfo.ID, searchString)
+	return getAllCompletedTestsForStudent(session, tokenInfo.ID, searchString, helpers.EmptyStringParameter)
 }
 
-func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, searchString string) ([]repositories.CompletedTest, error) {
+func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, searchString string, subject string) ([]repositories.CompletedTest, error) {
 	extraCondition := ""
 	if searchString != helpers.EmptyStringParameter {
 		value := 8
 		extraCondition = fmt.Sprintf(`
 			AND (apoc.text.distance(t.name, '%s') < %d OR apoc.text.distance(subj.name, '%s') < %d) 
 		`, searchString, value, searchString, value)
+	} else if subject != helpers.EmptyStringParameter {
+		extraCondition = fmt.Sprintf(`
+			AND subj.name = '%s' 
+		`, subject)
 	}
 
 	query := fmt.Sprintf(`
@@ -587,7 +591,7 @@ func getUserFromTestQuery(record neo4j.Record, nodeName string) (repositories.Us
 	}, nil
 }
 
-func getNextID(session neo4j.Session, label string, IDProperty string) (int, error) {
+func getNextNodeID(session neo4j.Session, label string, IDProperty string) (int, error) {
 	query := fmt.Sprintf("MATCH (n:%s) RETURN max(n.%s) + 1 as next", label, IDProperty)
 	params := map[string]interface{}{}
 
