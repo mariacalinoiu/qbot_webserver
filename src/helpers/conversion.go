@@ -12,6 +12,9 @@ func GetAnswerMapFromQuery(record neo4j.Record, key string, shouldCheck bool, ma
 	if err != nil {
 		return map[int][]string{}, err
 	}
+	if stringAnswers == "" {
+		return map[int][]string{}, nil
+	}
 
 	var answers map[int][]string
 	err = json.Unmarshal([]byte(stringAnswers), &answers)

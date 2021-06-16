@@ -514,7 +514,7 @@ func getTestFromTestQuery(record neo4j.Record) (repositories.Test, error) {
 	if err != nil {
 		return repositories.Test{}, err
 	}
-	answers, err := helpers.GetAnswerMapFromQuery(record, "t.answers", true, true)
+	answers, err := helpers.GetAnswerMapFromQuery(record, "t.answers", true, false)
 	if err != nil {
 		return repositories.Test{}, err
 	}
