@@ -120,6 +120,10 @@ func getObjectiveFromQuery(record neo4j.Record) (repositories.Objective, error) 
 	if err != nil {
 		return repositories.Objective{}, err
 	}
+	targetGrade, err := helpers.GetIntParameterFromQuery(record, "ssubj.target", true, true)
+	if err != nil {
+		return repositories.Objective{}, err
+	}
 	subjectName, err := helpers.GetStringParameterFromQuery(record, "subj.name", true, true)
 	if err != nil {
 		return repositories.Objective{}, err
@@ -127,6 +131,8 @@ func getObjectiveFromQuery(record neo4j.Record) (repositories.Objective, error) 
 
 	return repositories.Objective{
 		ID:             ID,
+		Subject:        subjectName,
+		TargetGrade:    targetGrade,
 		StartTimestamp: timestampStart,
 		EndTimestamp:   timestampEnd,
 		Tests: []repositories.CompletedTest{
