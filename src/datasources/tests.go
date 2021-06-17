@@ -215,7 +215,7 @@ func GetTests(session neo4j.Session, path string, token string, testID int, sear
 	if tokenInfo.Label == teacherLabel {
 		if testID != helpers.EmptyIntParameter && !singleTest {
 			return getAllCompletedTestsForTeacher(session, testID)
-		} else if testID != helpers.EmptyIntParameter && singleTest {
+		} else if testID != helpers.EmptyIntParameter {
 			return getTestForTeacher(session, tokenInfo.ID, testID)
 		} else {
 			return getAllTestsForTeacher(session, tokenInfo.ID, searchString)
@@ -325,7 +325,7 @@ func getTestForTeacher(session neo4j.Session, teacherID int, testID int) ([]repo
 		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
 		WHERE p.ID = $teacherID AND t.testID = $testID 
 		RETURN t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
-					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
+					t.enablePartialScoring, t.mandatoryToPass, t.template, 0 as nrTestsGraded, t.answers, 
 					p.ID, p.email, p.firstName, p.lastName
 	`
 
