@@ -104,10 +104,10 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 	return nil
 }
 
-func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) error {
+func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) (int, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil || tokenInfo.Label != teacherLabel {
-		return helpers.InvalidTokenError(path, err)
+		return 0, helpers.InvalidTokenError(path, err)
 	}
 
 	queryPrefix := ""
@@ -119,7 +119,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 	} else {
 		testID, err = getNextNodeID(session, "Test", "testID")
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		queryPrefix = `
@@ -152,7 +152,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 
 	err = helpers.WriteTX(session, query, params)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	query = fmt.Sprintf(`
@@ -166,7 +166,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 		"testID":    testID,
 	}
 
-	return helpers.WriteTX(session, query, params)
+	return testID, helpers.WriteTX(session, query, params)
 }
 
 func DeleteTest(session neo4j.Session, path string, token string, testID int) error {
@@ -206,15 +206,17 @@ func GetNotificationTests(session neo4j.Session, path string, token string) ([]r
 	return getNotificationsCompletedTests(session, tokenInfo, notificationMessages)
 }
 
-func GetTests(session neo4j.Session, path string, token string, testID int, searchString string) ([]repositories.CompletedTest, error) {
+func GetTests(session neo4j.Session, path string, token string, testID int, searchString string, singleTest bool) ([]repositories.CompletedTest, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil {
 		return []repositories.CompletedTest{}, helpers.InvalidTokenError(path, err)
 	}
 
 	if tokenInfo.Label == teacherLabel {
-		if testID != helpers.EmptyIntParameter {
+		if testID != helpers.EmptyIntParameter && !singleTest {
 			return getAllCompletedTestsForTeacher(session, testID)
+		} else if testID != helpers.EmptyIntParameter && singleTest {
+			return getTestForTeacher(session, tokenInfo.ID, testID)
 		} else {
 			return getAllTestsForTeacher(session, tokenInfo.ID, searchString)
 		}
@@ -294,6 +296,45 @@ func getAllTestsForTeacher(session neo4j.Session, teacherID int, searchString st
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
 		records, err := tx.Run(query, map[string]interface{}{"teacherID": teacherID})
+		if err != nil {
+			return []repositories.CompletedTest{}, err
+		}
+
+		for records.Next() {
+			record := records.Record()
+			test, err := getTestFromTestQuery(record)
+			if err != nil {
+				return []repositories.CompletedTest{}, err
+			}
+
+			results = append(results, repositories.CompletedTest{Test: test})
+		}
+
+		return results, nil
+	})
+
+	if err != nil {
+		return []repositories.CompletedTest{}, err
+	}
+
+	return testResults.([]repositories.CompletedTest), nil
+}
+
+func getTestForTeacher(session neo4j.Session, teacherID int, testID int) ([]repositories.CompletedTest, error) {
+	query := `
+		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
+		WHERE p.ID = $teacherID AND t.testID = $testID 
+		RETURN t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
+					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
+					p.ID, p.email, p.firstName, p.lastName
+	`
+
+	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		var results []repositories.CompletedTest
+		records, err := tx.Run(query, map[string]interface{}{
+			"teacherID": teacherID,
+			"testID":    testID,
+		})
 		if err != nil {
 			return []repositories.CompletedTest{}, err
 		}

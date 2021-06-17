@@ -35,7 +35,7 @@ func HandleTests(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 	case http.MethodGet:
 		response, status, err = getTests(r, session, path)
 	case http.MethodPost, http.MethodPut:
-		status, err = addTest(r, session, path, s3Bucket, s3Region, s3Profile, logger)
+		response, status, err = addTest(r, session, path, s3Bucket, s3Region, s3Profile, logger)
 	case http.MethodDelete:
 		status, err = deleteTest(r, session, path)
 	default:
@@ -81,7 +81,7 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
 
-	tests, err := datasources.GetTests(session, path, token, testID, searchString)
+	tests, err := datasources.GetTests(session, path, token, testID, searchString, false)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
@@ -94,22 +94,31 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 	return response, http.StatusOK, nil
 }
 
-func addTest(r *http.Request, session neo4j.Session, path string, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) (int, error) {
+func addTest(r *http.Request, session neo4j.Session, path string, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) ([]byte, int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
-		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
+		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
 	}
 	test, err := extractTest(r)
 	if err != nil {
-		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
+		return nil, http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
 
-	err = datasources.AddTest(session, path, token, test, s3Bucket, s3Region, s3Profile, logger)
+	testID, err := datasources.AddTest(session, path, token, test, s3Bucket, s3Region, s3Profile, logger)
 	if err != nil {
-		return http.StatusInternalServerError, helpers.AddError(path, err)
+		return nil, http.StatusInternalServerError, helpers.AddError(path, err)
+	}
+	tests, err := datasources.GetTests(session, path, token, testID, helpers.EmptyStringParameter, true)
+	if err != nil {
+		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
 
-	return http.StatusOK, nil
+	response, err := json.Marshal(tests)
+	if err != nil {
+		return nil, http.StatusInternalServerError, helpers.MarshalError(path, err)
+	}
+
+	return response, http.StatusOK, nil
 }
 
 func deleteTest(r *http.Request, session neo4j.Session, path string) (int, error) {
