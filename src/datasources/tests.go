@@ -578,7 +578,7 @@ func getUserFromTestQuery(record neo4j.Record, nodeName string) (repositories.Us
 	if err != nil {
 		return repositories.User{}, err
 	}
-	lastName, err := helpers.GetStringParameterFromQuery(record, fmt.Sprintf("%s.firstName", nodeName), true, true)
+	lastName, err := helpers.GetStringParameterFromQuery(record, fmt.Sprintf("%s.lastName", nodeName), true, true)
 	if err != nil {
 		return repositories.User{}, err
 	}
