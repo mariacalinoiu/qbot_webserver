@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -133,6 +134,7 @@ func extractTest(r *http.Request) (repositories.Test, error) {
 	var unmarshalledTest repositories.Test
 
 	body, err := ioutil.ReadAll(r.Body)
+	fmt.Printf("request body: %+v", body)
 	if err != nil {
 		return repositories.Test{}, err
 	}

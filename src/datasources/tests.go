@@ -226,7 +226,7 @@ func GetTests(session neo4j.Session, path string, token string, testID int, sear
 func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, searchString string, subject string) ([]repositories.CompletedTest, error) {
 	extraCondition := ""
 	if searchString != helpers.EmptyStringParameter {
-		value := 8
+		value := 1
 		extraCondition = fmt.Sprintf(`
 			AND (apoc.text.distance(t.name, '%s') < %d OR apoc.text.distance(subj.name, '%s') < %d) 
 		`, searchString, value, searchString, value)
