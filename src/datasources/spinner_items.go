@@ -39,9 +39,14 @@ func GetGroups(session neo4j.Session, faculty string, specialization string) ([]
 }
 
 func GetSubjects(session neo4j.Session, path string, token string, forUserOnly bool) ([]repositories.SpinnerItem, error) {
-	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil {
-		return []repositories.SpinnerItem{}, helpers.InvalidTokenError(path, err)
+	var err error
+	tokenInfo := repositories.TokenInfo{}
+
+	if token != helpers.EmptyStringParameter {
+		tokenInfo, err = GetTokenInfo(session, token)
+		if err != nil {
+			return []repositories.SpinnerItem{}, helpers.InvalidTokenError(path, err)
+		}
 	}
 
 	query := `
