@@ -44,7 +44,7 @@ func GetSubjects(session neo4j.Session, path string, token string, forUserOnly b
 
 	if token != helpers.EmptyStringParameter {
 		tokenInfo, err = GetTokenInfo(session, token)
-		if err != nil {
+		if err != nil && forUserOnly {
 			return []repositories.SpinnerItem{}, helpers.InvalidTokenError(path, err)
 		}
 	}
