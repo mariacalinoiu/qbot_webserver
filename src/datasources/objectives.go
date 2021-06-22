@@ -70,17 +70,23 @@ func AddObjective(session neo4j.Session, path string, token string, subject stri
 
 func getObjectivesWithoutCompletedTestsForStudent(session neo4j.Session, studentID int, subject string, search string) ([]repositories.Objective, error) {
 	extraCondition := ""
+	extraConditionSearch := ""
 	if subject != helpers.EmptyStringParameter {
 		extraCondition = fmt.Sprintf(" AND subj.name = '%s' ", subject)
 	} else if search != helpers.EmptyStringParameter {
-		extraCondition = fmt.Sprintf(" AND apoc.text.distance(subj.name, '%s') < %d", search, helpers.DefaultStringComparisonValue)
+		extraConditionSearch = fmt.Sprintf(`
+			CALL db.index.fulltext.queryNodes('subjects', '%s~')
+			YIELD node
+			WITH node.name as name
+		`, search)
+		extraCondition = " AND subj.name = name"
 	}
 
-	query := fmt.Sprintf(`
+	query := fmt.Sprintf(` %s
 		MATCH (s:Student)-[ssubj:SET_OBJECTIVE]->(subj:Subject)
 		WHERE s.ID = $studentID %s 
 		RETURN subj.name, ssubj.timestampStart, ssubj.timestampEnd, ssubj.target, ssubj.ID 
-	`, extraCondition)
+	`, extraConditionSearch, extraCondition)
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.Objective
