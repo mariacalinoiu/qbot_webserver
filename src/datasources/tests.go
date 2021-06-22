@@ -227,18 +227,27 @@ func GetTests(session neo4j.Session, path string, token string, testID int, sear
 
 func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, searchString string, subject string) ([]repositories.CompletedTest, error) {
 	extraCondition := ""
+	extraConditionSearch := ""
 	if searchString != helpers.EmptyStringParameter {
-		value := 1
-		extraCondition = fmt.Sprintf(`
-			AND (apoc.text.distance(t.name, '%s') < %d OR apoc.text.distance(subj.name, '%s') < %d) 
-		`, searchString, value, searchString, value)
+		extraConditionSearch = fmt.Sprintf(`
+			CALL db.index.fulltext.queryNodes('subjects', '%s~')
+			YIELD node, score
+			WITH collect({name:node.name}) as rows
+			CALL db.index.fulltext.queryNodes('tests', '%s~')
+			YIELD node, score
+			WITH rows + collect({name:node.name}) as allRows
+			UNWIND allRows as row
+			with distinct(row.name) as name
+		`, searchString, searchString)
+
+		extraCondition = "AND (subj.name = name OR t.name = name)"
 	} else if subject != helpers.EmptyStringParameter {
 		extraCondition = fmt.Sprintf(`
 			AND subj.name = '%s' 
 		`, subject)
 	}
 
-	query := fmt.Sprintf(`
+	query := fmt.Sprintf(` %s 
 		MATCH (g:Group)<-[sg:MEMBER_OF]-(s:Student)-[st:COMPLETED]->(t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
 		WHERE s.ID = $studentID %s 
 		RETURN s.ID, s.email, s.firstName, s.lastName, g.gID, 
@@ -246,7 +255,7 @@ func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, search
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
 					p.ID, p.email, p.firstName, p.lastName, 
 				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback
-	`, extraCondition)
+	`, extraConditionSearch, extraCondition)
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
@@ -280,20 +289,30 @@ func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, search
 
 func getAllTestsForTeacher(session neo4j.Session, teacherID int, searchString string) ([]repositories.CompletedTest, error) {
 	extraCondition := ""
+	extraConditionSearch := ""
 	if searchString != helpers.EmptyStringParameter {
-		extraCondition = fmt.Sprintf(`
-			AND (apoc.text.distance(t.name, '%s') < %d OR apoc.text.distance(subj.name, '%s') < %d) 
-		`, searchString, helpers.DefaultStringComparisonValue, searchString, helpers.DefaultStringComparisonValue)
+		extraConditionSearch = fmt.Sprintf(`
+			CALL db.index.fulltext.queryNodes('subjects', '%s~')
+			YIELD node, score
+			WITH collect({name:node.name}) as rows
+			CALL db.index.fulltext.queryNodes('tests', '%s~')
+			YIELD node, score
+			WITH rows + collect({name:node.name}) as allRows
+			UNWIND allRows as row
+			with distinct(row.name) as name
+		`, searchString, searchString)
+
+		extraCondition = "AND (subj.name = name OR t.name = name)"
 	}
 
-	query := fmt.Sprintf(`
+	query := fmt.Sprintf(` %s 
 		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
 		OPTIONAL MATCH (Student)-[st:COMPLETED]->(t:Test) 
 		WHERE p.ID = $teacherID %s
 		RETURN t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
 					p.ID, p.email, p.firstName, p.lastName
-	`, extraCondition)
+	`, extraConditionSearch, extraCondition)
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
