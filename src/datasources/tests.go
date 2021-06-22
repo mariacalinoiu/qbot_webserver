@@ -250,6 +250,9 @@ func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, search
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{"studentID": studentID})
 		if err != nil {
 			return []repositories.CompletedTest{}, err
@@ -294,6 +297,9 @@ func getAllTestsForTeacher(session neo4j.Session, teacherID int, searchString st
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{"teacherID": teacherID})
 		if err != nil {
 			return []repositories.CompletedTest{}, err
@@ -330,6 +336,9 @@ func getTestForTeacher(session neo4j.Session, teacherID int, testID int) ([]repo
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{
 			"teacherID": teacherID,
 			"testID":    testID,
@@ -371,6 +380,9 @@ func getAllCompletedTestsForTeacher(session neo4j.Session, testID int) ([]reposi
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{"testID": testID})
 		if err != nil {
 			return []repositories.CompletedTest{}, err
@@ -419,6 +431,9 @@ func getNotificationsCompletedTests(session neo4j.Session, tokenInfo repositorie
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.CompletedTest
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{"ID": tokenInfo.ID})
 		if err != nil {
 			return []repositories.CompletedTest{}, err
@@ -636,6 +651,9 @@ func getNextNodeID(session neo4j.Session, label string, IDProperty string) (int,
 	params := map[string]interface{}{}
 
 	nextID, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, params)
 		if err != nil {
 			return 0, err

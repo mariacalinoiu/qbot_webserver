@@ -90,6 +90,9 @@ func getObjectivesWithoutCompletedTestsForStudent(session neo4j.Session, student
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 		var results []repositories.Objective
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{"studentID": studentID})
 		if err != nil {
 			return []repositories.Objective{}, err
@@ -158,6 +161,9 @@ func getNextRelationshipID(session neo4j.Session, relationshipType string, IDPro
 	params := map[string]interface{}{}
 
 	nextID, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, params)
 		if err != nil {
 			return 0, err

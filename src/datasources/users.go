@@ -21,6 +21,9 @@ func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, 
 		RETURN n.ID AS userID, labels(n) AS type
 	`
 	tokenQueryResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, map[string]interface{}{"token": token})
 		if err != nil {
 			return repositories.TokenInfo{}, err

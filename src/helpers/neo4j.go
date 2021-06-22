@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
@@ -23,6 +25,9 @@ func GetNeo4jSession(driver neo4j.Driver) (neo4j.Session, error) {
 
 func WriteTX(session neo4j.Session, query string, params map[string]interface{}) error {
 	_, err := session.WriteTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
 		result, err := tx.Run(query, params)
 		if err != nil {
 			return nil, err

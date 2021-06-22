@@ -80,6 +80,9 @@ func GetSubjects(session neo4j.Session, path string, token string, forUserOnly b
 
 func getSpinnerItems(session neo4j.Session, query string, params map[string]interface{}, recordName string) ([]repositories.SpinnerItem, error) {
 	subjects, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
 		records, err := tx.Run(query, params)
 		if err != nil {
 			return []repositories.SpinnerItem{}, err
