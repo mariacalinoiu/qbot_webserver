@@ -9,13 +9,13 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func GetObjectives(session neo4j.Session, path string, token string, subject string) ([]repositories.Objective, error) {
+func GetObjectives(session neo4j.Session, path string, token string, subject string, search string) ([]repositories.Objective, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil || tokenInfo.Label != studentLabel {
 		return []repositories.Objective{}, helpers.InvalidTokenError(path, err)
 	}
 
-	objectives, err := getObjectivesWithoutCompletedTestsForStudent(session, tokenInfo.ID, subject)
+	objectives, err := getObjectivesWithoutCompletedTestsForStudent(session, tokenInfo.ID, subject, search)
 	if err != nil {
 		return []repositories.Objective{}, err
 	}
@@ -68,10 +68,12 @@ func AddObjective(session neo4j.Session, path string, token string, subject stri
 	return helpers.WriteTX(session, query, params)
 }
 
-func getObjectivesWithoutCompletedTestsForStudent(session neo4j.Session, studentID int, subject string) ([]repositories.Objective, error) {
+func getObjectivesWithoutCompletedTestsForStudent(session neo4j.Session, studentID int, subject string, search string) ([]repositories.Objective, error) {
 	extraCondition := ""
 	if subject != helpers.EmptyStringParameter {
 		extraCondition = fmt.Sprintf(" AND subj.name = '%s' ", subject)
+	} else if search != helpers.EmptyStringParameter {
+		extraCondition = fmt.Sprintf(" AND apoc.text.distance(subj.name, '%s') < %d", search, helpers.DefaultStringComparisonValue)
 	}
 
 	query := fmt.Sprintf(`

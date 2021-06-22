@@ -73,8 +73,12 @@ func getObjectives(r *http.Request, session neo4j.Session, path string) ([]byte,
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
+	searchString, err := helpers.GetStringParameter(r, repositories.Search, false)
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
+	}
 
-	objective, err := datasources.GetObjectives(session, path, token, subject)
+	objective, err := datasources.GetObjectives(session, path, token, subject, searchString)
 	if err != nil {
 		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
 	}
