@@ -11,7 +11,7 @@ import (
 
 func GetObjectives(session neo4j.Session, path string, token string, subject string, search string) ([]repositories.Objective, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != StudentLabel {
+	if err != nil || tokenInfo.Label != repositories.StudentLabel {
 		return []repositories.Objective{}, helpers.InvalidTokenError(path, err)
 	}
 
@@ -39,7 +39,7 @@ func GetObjectives(session neo4j.Session, path string, token string, subject str
 
 func AddObjective(session neo4j.Session, path string, token string, subject string, objective repositories.Objective) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != StudentLabel {
+	if err != nil || tokenInfo.Label != repositories.StudentLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 

@@ -14,7 +14,7 @@ import (
 
 func AddTestAnswers(session neo4j.Session, path string, token string, testID int, answers map[int][]string) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != TeacherLabel {
+	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
@@ -37,7 +37,7 @@ func AddTestAnswers(session neo4j.Session, path string, token string, testID int
 
 func AddFeedbackForTest(session neo4j.Session, path string, token string, testID int, feedback string) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != TeacherLabel {
+	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
@@ -55,7 +55,7 @@ func AddFeedbackForTest(session neo4j.Session, path string, token string, testID
 
 func OverwriteGradeForTest(session neo4j.Session, path string, token string, testID int, studentID int, newGrade int) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != TeacherLabel {
+	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
@@ -76,7 +76,7 @@ func OverwriteGradeForTest(session neo4j.Session, path string, token string, tes
 
 func SignalErrorForTest(session neo4j.Session, path string, token string, testID int) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != StudentLabel {
+	if err != nil || tokenInfo.Label != repositories.StudentLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
@@ -95,7 +95,7 @@ func SignalErrorForTest(session neo4j.Session, path string, token string, testID
 
 func GradeTest(logger *log.Logger, session neo4j.Session, path string, token string, test repositories.CompletedTest) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != TeacherLabel {
+	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
@@ -106,7 +106,7 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 
 func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) (int, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != TeacherLabel {
+	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return 0, helpers.InvalidTokenError(path, err)
 	}
 
@@ -171,7 +171,7 @@ func AddTest(session neo4j.Session, path string, token string, test repositories
 
 func DeleteTest(session neo4j.Session, path string, token string, testID int) error {
 	tokenInfo, err := GetTokenInfo(session, token)
-	if err != nil || tokenInfo.Label != TeacherLabel {
+	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
@@ -195,7 +195,7 @@ func GetNotificationTests(session neo4j.Session, path string, token string) ([]r
 	}
 
 	notificationMessages := make([]string, 2)
-	if tokenInfo.Label == TeacherLabel {
+	if tokenInfo.Label == repositories.TeacherLabel {
 		notificationMessages[0] = helpers.GradingErrorNotification
 		notificationMessages[1] = helpers.TestGradedNotification
 	} else {
@@ -212,7 +212,7 @@ func GetTests(session neo4j.Session, path string, token string, testID int, sear
 		return []repositories.CompletedTest{}, helpers.InvalidTokenError(path, err)
 	}
 
-	if tokenInfo.Label == TeacherLabel {
+	if tokenInfo.Label == repositories.TeacherLabel {
 		if testID != helpers.EmptyIntParameter && !singleTest {
 			return getAllCompletedTestsForTeacher(session, testID)
 		} else if testID != helpers.EmptyIntParameter {
@@ -429,7 +429,7 @@ func getAllCompletedTestsForTeacher(session neo4j.Session, testID int) ([]reposi
 
 func getNotificationsCompletedTests(session neo4j.Session, tokenInfo repositories.TokenInfo, messages []string) ([]repositories.CompletedTest, error) {
 	nodePrefix := "p"
-	if tokenInfo.Label == StudentLabel {
+	if tokenInfo.Label == repositories.StudentLabel {
 		nodePrefix = "s"
 	}
 

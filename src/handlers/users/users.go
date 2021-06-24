@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 
@@ -104,8 +105,10 @@ func signUp(r *http.Request, session neo4j.Session, path string) ([]byte, int, e
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
+	userType = strings.ToUpper(userType)
 	var user interface{}
-	if userType == datasources.StudentLabel {
+
+	if userType == repositories.StudentType {
 		user, err = extractStudent(r)
 	} else {
 		user, err = extractTeacher(r)

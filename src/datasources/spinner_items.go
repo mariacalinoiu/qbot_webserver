@@ -56,7 +56,7 @@ func GetSubjects(session neo4j.Session, path string, token string, forUserOnly b
 	params := map[string]interface{}{}
 
 	if forUserOnly {
-		if tokenInfo.Label == StudentLabel {
+		if tokenInfo.Label == repositories.StudentLabel {
 			query = `
 				MATCH (stud:Student)-[r:ENROLLED_IN]->(s:Subject) 
 				WHERE stud.ID = $id 

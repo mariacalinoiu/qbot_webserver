@@ -12,6 +12,11 @@ const (
 	Feedback       = "feedback"
 	ForUserOnly    = "forUserOnly"
 	Search         = "search"
+
+	StudentLabel = "Student"
+	StudentType  = "S"
+	TeacherLabel = "Teacher"
+	TeacherType  = "P"
 )
 
 type Item struct {

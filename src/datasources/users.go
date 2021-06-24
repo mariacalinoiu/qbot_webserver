@@ -9,11 +9,6 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-const (
-	StudentLabel = "Student"
-	TeacherLabel = "Teacher"
-)
-
 func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, error) {
 	query := `
 		MATCH (n) 
@@ -67,7 +62,7 @@ func DeleteUser(session neo4j.Session, path string, token string) error {
 		WHERE s.ID = $ID
 		DETACH DELETE s
 	`
-	if tokenInfo.Label == TeacherLabel {
+	if tokenInfo.Label == repositories.TeacherLabel {
 		query = `
 			MATCH (p:Teacher) 
 			WHERE p.ID = $ID
@@ -85,11 +80,11 @@ func DeleteUser(session neo4j.Session, path string, token string) error {
 func AddUser(session neo4j.Session, userType string, user interface{}) (repositories.Item, error) {
 	var err error
 	token := helpers.GenerateToken(20)
-	if userType == StudentLabel {
+	if userType == repositories.StudentType {
 		err = addStudent(session, user, token)
+	} else {
+		err = addTeacher(session, user, token)
 	}
-
-	err = addTeacher(session, user, token)
 	if err != nil {
 		return repositories.Item{}, err
 	}
@@ -103,7 +98,7 @@ func GetUser(session neo4j.Session, path string, token string) (interface{}, err
 		return repositories.User{}, helpers.InvalidTokenError(path, err)
 	}
 
-	if tokenInfo.Label == StudentLabel {
+	if tokenInfo.Label == repositories.StudentLabel {
 		return getStudent(session, tokenInfo, token)
 	}
 
@@ -224,9 +219,9 @@ func addTeacher(session neo4j.Session, user interface{}, token string) error {
 
 func getTeacher(session neo4j.Session, tokenInfo repositories.TokenInfo, token string) (interface{}, error) {
 	query := `
-		MATCH (p:Teacher)-[:AFILLIATED_TO]->(f:Faculty), (t:Test)-[c:ADDED_BY]->(p:Teacher)
+		MATCH (p:Teacher)-[:AFILLIATED_TO]->(f:Faculty) 
 		WHERE p.ID = $pID
-		RETURN p.ID, p.email, p.password, p.firstName, p.lastName, f.name, count(c) as nrTests
+		RETURN p.ID, p.email, p.password, p.firstName, p.lastName, f.name 
 	`
 	params := map[string]interface{}{
 		"pID": tokenInfo.ID,
@@ -248,7 +243,7 @@ func getTeacher(session neo4j.Session, tokenInfo repositories.TokenInfo, token s
 			}
 			teacher.User.ID = tokenInfo.ID
 			teacher.User.Token = token
-			teacher.User.Type = tokenInfo.Label
+			teacher.User.Type = repositories.TeacherType
 
 			return teacher, nil
 		}
@@ -264,16 +259,53 @@ func getTeacher(session neo4j.Session, tokenInfo repositories.TokenInfo, token s
 	teacherSubjects, err := getSubjectsForUser(session, tokenInfo)
 	teacher.Subjects = teacherSubjects
 
+	query = `
+		MATCH (t:Test)-[c:ADDED_BY]->(p:Teacher)
+		WHERE p.ID = $pID
+		RETURN count(c) as nrTests
+	`
+	params = map[string]interface{}{
+		"pID": tokenInfo.ID,
+	}
+
+	result, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
+		records, err := tx.Run(query, params)
+		if err != nil {
+			return repositories.Professor{}, err
+		}
+		var results repositories.Professor
+		for records.Next() {
+			teacher, err := getTeacherStatsFromQuery(records.Record())
+			if err != nil {
+				return repositories.Professor{}, err
+			}
+			teacher.User.ID = tokenInfo.ID
+			teacher.User.Token = token
+			teacher.User.Type = repositories.TeacherType
+
+			return teacher, nil
+		}
+
+		return results, nil
+	})
+	if err != nil {
+		return repositories.Professor{}, err
+	}
+
+	teacherStats := result.(repositories.Professor)
+	teacher.NrTests = teacherStats.NrTests
+
 	return teacher, nil
 }
 
 func getStudent(session neo4j.Session, tokenInfo repositories.TokenInfo, token string) (interface{}, error) {
 	query := `
-		MATCH (s:Student)-[:MEMBER_OF]->(g:Group)-[:HAS_SPECIALIZATION]->(spec:Specialization)-[:IN_FACULTY]->(f:Faculty), 
-			(s:Student)-[c:COMPLETED]->(t:Test)
+		MATCH (s:Student)-[:MEMBER_OF]->(g:Group)-[:HAS_SPECIALIZATION]->(spec:Specialization)-[:IN_FACULTY]->(f:Faculty) 
 		WHERE s.ID = $sID
-		RETURN s.ID, s.email, s.password, s.firstName, s.lastName, s.year, f.name, spec.name, g.gID, 
-			count(c) as nrTestsCompleted, toInteger(avg(c.grade * 1.0 / t.points) * 100) as averageGrade
+		RETURN s.ID, s.email, s.password, s.firstName, s.lastName, s.year, f.name, spec.name, g.gID 
 	`
 	params := map[string]interface{}{
 		"sID": tokenInfo.ID,
@@ -296,7 +328,7 @@ func getStudent(session neo4j.Session, tokenInfo repositories.TokenInfo, token s
 			}
 			user.ID = tokenInfo.ID
 			user.Token = token
-			user.Type = tokenInfo.Label
+			user.Type = repositories.StudentType
 
 			student, err := getStudentFromQuery(record, user)
 			if err != nil {
@@ -317,6 +349,45 @@ func getStudent(session neo4j.Session, tokenInfo repositories.TokenInfo, token s
 	studentSubjects, err := getSubjectsForUser(session, tokenInfo)
 	student.Subjects = studentSubjects
 
+	query = `
+		MATCH (s:Student)-[c:COMPLETED]->(t:Test) 
+		WHERE s.ID = $sID 
+		RETURN count(c) as nrTestsCompleted, toInteger(avg(c.grade * 1.0 / t.points) * 100) as averageGrade 
+	`
+	params = map[string]interface{}{
+		"sID": tokenInfo.ID,
+	}
+
+	result, err = session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
+		records, err := tx.Run(query, params)
+		if err != nil {
+			return repositories.Student{}, err
+		}
+		var results repositories.Student
+		for records.Next() {
+			record := records.Record()
+			student, err := getStudentStatsFromQuery(record)
+			if err != nil {
+				return repositories.Student{}, err
+			}
+
+			return student, nil
+		}
+
+		return results, nil
+	})
+	if err != nil {
+		return repositories.Student{}, err
+	}
+
+	statsForStudent := result.(repositories.Student)
+
+	student.AverageGrade = statsForStudent.AverageGrade
+	student.NrTestsTaken = statsForStudent.NrTestsTaken
+
 	return student, nil
 }
 
@@ -326,7 +397,7 @@ func getSubjectsForUser(session neo4j.Session, tokenInfo repositories.TokenInfo)
 		WHERE s.ID = $ID 
 		RETURN subj.name 
 	`
-	if tokenInfo.Label == TeacherLabel {
+	if tokenInfo.Label == repositories.TeacherLabel {
 		query = `
 			MATCH (p:Teacher)-[:TEACHES]->(subj:Subject) 
 			WHERE p.ID = $ID 
@@ -369,13 +440,19 @@ func getTeacherFromQuery(record neo4j.Record) (repositories.Professor, error) {
 	if err != nil {
 		return repositories.Professor{}, err
 	}
+
+	return repositories.Professor{
+		User: user,
+	}, nil
+}
+
+func getTeacherStatsFromQuery(record neo4j.Record) (repositories.Professor, error) {
 	nrTests, err := helpers.GetIntParameterFromQuery(record, "nrTests", false, false)
 	if err != nil {
 		return repositories.Professor{}, err
 	}
 
 	return repositories.Professor{
-		User:    user,
 		NrTests: nrTests,
 	}, nil
 }
@@ -393,22 +470,28 @@ func getStudentFromQuery(record neo4j.Record, user repositories.User) (repositor
 	if err != nil {
 		return repositories.Student{}, err
 	}
-	nrTestsCompleted, err := helpers.GetIntParameterFromQuery(record, "nrTestsCompleted", true, true)
-	if err != nil {
-		return repositories.Student{}, err
-	}
-	averageGrade, err := helpers.GetIntParameterFromQuery(record, "averageGrade", true, true)
-	if err != nil {
-		return repositories.Student{}, err
-	}
 
 	return repositories.Student{
 		User:           user,
 		Year:           year,
 		Specialization: specialization,
 		Group:          group,
-		NrTestsTaken:   nrTestsCompleted,
-		AverageGrade:   averageGrade,
+	}, nil
+}
+
+func getStudentStatsFromQuery(record neo4j.Record) (repositories.Student, error) {
+	nrTestsCompleted, err := helpers.GetIntParameterFromQuery(record, "nrTestsCompleted", true, true)
+	if err != nil {
+		return repositories.Student{}, err
+	}
+	averageGrade, err := helpers.GetIntParameterFromQuery(record, "averageGrade", false, false)
+	if err != nil {
+		return repositories.Student{}, err
+	}
+
+	return repositories.Student{
+		NrTestsTaken: nrTestsCompleted,
+		AverageGrade: averageGrade,
 	}, nil
 }
 
