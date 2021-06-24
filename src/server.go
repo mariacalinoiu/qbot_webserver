@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
+	"qbot_webserver/src/handlers/users"
 
 	"qbot_webserver/src/handlers"
 	"qbot_webserver/src/handlers/spinneritems"
@@ -117,7 +118,7 @@ func newServer(driver neo4j.Driver, s3Bucket string, s3Region string, s3Profile 
 	)
 	s.mux.HandleFunc("/users",
 		func(w http.ResponseWriter, r *http.Request) {
-			handlers.HandleUsers(w, r, s.logger, driver, "users")
+			users.HandleUsers(w, r, s.logger, driver, "users")
 		},
 	)
 

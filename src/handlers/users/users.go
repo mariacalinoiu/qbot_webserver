@@ -1,4 +1,4 @@
-package handlers
+package users
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 
+	"qbot_webserver/src/datasources"
 	helpers "qbot_webserver/src/helpers"
 	"qbot_webserver/src/repositories"
 )
@@ -29,8 +30,12 @@ func HandleUsers(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 	switch r.Method {
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
-	case http.MethodGet, http.MethodPost, http.MethodPut:
-		status, err = http.StatusOK, nil
+	case http.MethodGet:
+		response, status, err = getUser(r, session, path)
+	case http.MethodPost:
+		// TODO: sign up
+	case http.MethodDelete:
+		status, err = deleteUser(r, session, path)
 	default:
 		status = http.StatusBadRequest
 		err = helpers.WrongMethodError(path)
@@ -58,4 +63,37 @@ func HandleUsers(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 
 	status = http.StatusOK
 	helpers.PrintStatus(logger, status)
+}
+
+func getUser(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
+	token, err := helpers.GetToken(r)
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.InvalidTokenError(path, err)
+	}
+
+	user, err := datasources.GetUser(session, path, token)
+	if err != nil {
+		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
+	}
+
+	response, err := json.Marshal(user)
+	if err != nil {
+		return nil, http.StatusInternalServerError, helpers.MarshalError(path, err)
+	}
+
+	return response, http.StatusOK, nil
+}
+
+func deleteUser(r *http.Request, session neo4j.Session, path string) (int, error) {
+	token, err := helpers.GetToken(r)
+	if err != nil {
+		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
+	}
+
+	err = datasources.DeleteUser(session, path, token)
+	if err != nil {
+		return http.StatusInternalServerError, helpers.GetError(path, err)
+	}
+
+	return http.StatusOK, nil
 }

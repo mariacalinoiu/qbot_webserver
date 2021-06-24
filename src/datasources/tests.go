@@ -536,7 +536,7 @@ func getCompletedTestFromTestQuery(record neo4j.Record) (repositories.CompletedT
 }
 
 func getTestFromTestQuery(record neo4j.Record) (repositories.Test, error) {
-	teacher, err := getTeacherFromTestQuery(record)
+	teacher, err := getTeacherFromQuery(record)
 	if err != nil {
 		return repositories.Test{}, err
 	}
@@ -612,7 +612,7 @@ func getTestFromTestQuery(record neo4j.Record) (repositories.Test, error) {
 }
 
 func getStudentFromTestQuery(record neo4j.Record) (repositories.Student, error) {
-	user, err := getUserFromTestQuery(record, "s")
+	user, err := getUserFromQuery(record, "s")
 	if err != nil {
 		return repositories.Student{}, err
 	}
@@ -625,43 +625,6 @@ func getStudentFromTestQuery(record neo4j.Record) (repositories.Student, error) 
 	return repositories.Student{
 		User:  user,
 		Group: studentGroup,
-	}, nil
-}
-
-func getTeacherFromTestQuery(record neo4j.Record) (repositories.Professor, error) {
-	user, err := getUserFromTestQuery(record, "p")
-	if err != nil {
-		return repositories.Professor{}, err
-	}
-
-	return repositories.Professor{
-		User: user,
-	}, nil
-}
-
-func getUserFromTestQuery(record neo4j.Record, nodeName string) (repositories.User, error) {
-	ID, err := helpers.GetIntParameterFromQuery(record, fmt.Sprintf("%s.ID", nodeName), true, true)
-	if err != nil {
-		return repositories.User{}, err
-	}
-	email, err := helpers.GetStringParameterFromQuery(record, fmt.Sprintf("%s.email", nodeName), true, true)
-	if err != nil {
-		return repositories.User{}, err
-	}
-	firstName, err := helpers.GetStringParameterFromQuery(record, fmt.Sprintf("%s.firstName", nodeName), true, true)
-	if err != nil {
-		return repositories.User{}, err
-	}
-	lastName, err := helpers.GetStringParameterFromQuery(record, fmt.Sprintf("%s.lastName", nodeName), true, true)
-	if err != nil {
-		return repositories.User{}, err
-	}
-
-	return repositories.User{
-		ID:        ID,
-		Email:     email,
-		FirstName: firstName,
-		LastName:  lastName,
 	}, nil
 }
 
