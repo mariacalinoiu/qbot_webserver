@@ -12,6 +12,8 @@ const (
 	Feedback       = "feedback"
 	ForUserOnly    = "forUserOnly"
 	Search         = "search"
+	Password       = "password"
+	NewPassword    = "newPassword"
 
 	StudentLabel = "Student"
 	StudentType  = "S"

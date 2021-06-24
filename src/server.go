@@ -116,6 +116,21 @@ func newServer(driver neo4j.Driver, s3Bucket string, s3Region string, s3Profile 
 			handlers.HandleObjectives(w, r, s.logger, driver, "objectives")
 		},
 	)
+	s.mux.HandleFunc("/users/login",
+		func(w http.ResponseWriter, r *http.Request) {
+			users.HandleLogin(w, r, s.logger, driver, "usersLogin")
+		},
+	)
+	s.mux.HandleFunc("/users/addSubjects",
+		func(w http.ResponseWriter, r *http.Request) {
+			users.HandleAddSubjects(w, r, s.logger, driver, "usersAddSubjects")
+		},
+	)
+	s.mux.HandleFunc("/users/changePassword",
+		func(w http.ResponseWriter, r *http.Request) {
+			users.HandleChangePassword(w, r, s.logger, driver, "usersChangePassword")
+		},
+	)
 	s.mux.HandleFunc("/users",
 		func(w http.ResponseWriter, r *http.Request) {
 			users.HandleUsers(w, r, s.logger, driver, "users")

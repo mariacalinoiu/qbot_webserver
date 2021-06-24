@@ -9,6 +9,8 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
+const tokenLength = 20
+
 func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, error) {
 	query := `
 		MATCH (n) 
@@ -51,6 +53,83 @@ func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, 
 	return tokenQueryResults.(repositories.TokenInfo), nil
 }
 
+func GetTokenFromEmailAndPassword(session neo4j.Session, email string, password string) (string, error) {
+	var token string
+	query := fmt.Sprintf(`
+		MATCH (n) 
+		WHERE (n:Student OR n:Teacher) AND n.email = $email AND n.password = '%s'
+		RETURN n.token
+	`, password)
+	params := map[string]interface{}{
+		"email": email,
+	}
+
+	result, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+
+		fmt.Printf("query: %s\n", query)
+
+		records, err := tx.Run(query, params)
+		if err != nil {
+			return helpers.EmptyStringParameter, fmt.Errorf("no user with these credentials")
+		}
+
+		for records.Next() {
+			record := records.Record()
+			token, err := helpers.GetStringParameterFromQuery(record, "token", false, false)
+			if err != nil {
+				return helpers.EmptyStringParameter, nil
+			}
+
+			return token, nil
+		}
+
+		return helpers.EmptyStringParameter, fmt.Errorf("no user with these credentials")
+	})
+	if err != nil {
+		return helpers.EmptyStringParameter, err
+	}
+
+	token = result.(string)
+	if token == helpers.EmptyStringParameter {
+		token = helpers.GenerateToken(tokenLength)
+
+		query := fmt.Sprintf(`
+			MATCH (n) 
+			WHERE (n:Student OR n:Teacher) AND n.email = $email AND n.password = '%s'
+			SET n.token=$token
+		`, password)
+		params = map[string]interface{}{
+			"email": email,
+			"token": token,
+		}
+
+		err = helpers.WriteTX(session, query, params)
+		if err != nil {
+			return helpers.EmptyStringParameter, err
+		}
+	}
+
+	return token, nil
+}
+
+func DeleteToken(session neo4j.Session, path string, token string) error {
+	_, err := GetTokenInfo(session, token)
+	if err != nil {
+		return helpers.InvalidTokenError(path, err)
+	}
+
+	query := `
+		MATCH (n) 
+		WHERE (n:Student OR n:Teacher) AND n.token = $token 
+		REMOVE n.token
+	`
+	params := map[string]interface{}{
+		"token": token,
+	}
+
+	return helpers.WriteTX(session, query, params)
+}
+
 func DeleteUser(session neo4j.Session, path string, token string) error {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil {
@@ -77,9 +156,84 @@ func DeleteUser(session neo4j.Session, path string, token string) error {
 	return helpers.WriteTX(session, query, params)
 }
 
+func ChangePassword(session neo4j.Session, path string, token string, oldPassword string, newPassword string) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil {
+		return helpers.InvalidTokenError(path, err)
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (s:Student) 
+		WHERE s.ID = $ID AND s.password='%s'
+		SET s.password='%s'
+	`, oldPassword, newPassword)
+	if tokenInfo.Label == repositories.TeacherLabel {
+		query = fmt.Sprintf(`
+			MATCH (p:Teacher) 
+			WHERE p.ID = $ID AND p.password='%s'
+			SET p.password='%s'
+		`, oldPassword, newPassword)
+	}
+
+	params := map[string]interface{}{
+		"ID": tokenInfo.ID,
+	}
+
+	return helpers.WriteTX(session, query, params)
+}
+
+func SetSubjectsForUser(session neo4j.Session, path string, token string, subjects []string) error {
+	tokenInfo, err := GetTokenInfo(session, token)
+	if err != nil {
+		return helpers.InvalidTokenError(path, err)
+	}
+
+	query := `
+		MATCH (s:Student {ID:$ID})-[r:ENROLLED_IN]->(subj:Subject) 
+		DELETE r
+	`
+	if tokenInfo.Label == repositories.TeacherLabel {
+		query = `
+			MATCH (p:Teacher {ID:$ID})-[r:TEACHES]->(subj:Subject) 
+			DELETE r
+		`
+	}
+	params := map[string]interface{}{
+		"ID": tokenInfo.ID,
+	}
+
+	err = helpers.WriteTX(session, query, params)
+	if err != nil {
+		return err
+	}
+
+	for _, subject := range subjects {
+		query = fmt.Sprintf(`
+			MATCH (s:Student {ID:$ID}), (subj:Subject {name:'%s'}) 
+			MERGE (s)-[r:ENROLLED_IN]->(subj)
+		`, subject)
+		if tokenInfo.Label == repositories.TeacherLabel {
+			query = fmt.Sprintf(`
+				MATCH (p:Teacher {ID:$ID}), (subj:Subject {name:'%s'}) 
+				MERGE (p)-[r:TEACHES]->(subj)
+			`, subject)
+		}
+		params = map[string]interface{}{
+			"ID": tokenInfo.ID,
+		}
+
+		err = helpers.WriteTX(session, query, params)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func AddUser(session neo4j.Session, userType string, user interface{}) (repositories.Item, error) {
 	var err error
-	token := helpers.GenerateToken(20)
+	token := helpers.GenerateToken(tokenLength)
 	if userType == repositories.StudentType {
 		err = addStudent(session, user, token)
 	} else {
@@ -90,6 +244,15 @@ func AddUser(session neo4j.Session, userType string, user interface{}) (reposito
 	}
 
 	return repositories.Item{Name: token}, nil
+}
+
+func GetUserByEmailAndPassword(session neo4j.Session, path string, email string, password string) (interface{}, error) {
+	token, err := GetTokenFromEmailAndPassword(session, email, password)
+	if err != nil || token == helpers.EmptyStringParameter {
+		return repositories.User{}, helpers.InvalidTokenError(path, err)
+	}
+
+	return GetUser(session, path, token)
 }
 
 func GetUser(session neo4j.Session, path string, token string) (interface{}, error) {
@@ -125,11 +288,6 @@ func addStudent(session neo4j.Session, user interface{}, token string) error {
 		`
 	}
 
-	encryptedPassword, err := helpers.EncryptPassword(student.Password)
-	if err != nil {
-		return err
-	}
-
 	query := fmt.Sprintf(`
 		%s 
 		SET s.year = '%s', s.email=$email, s.firstName=$firstName, s.lastName=$lastName, s.password=$password, s.token=$token 
@@ -140,7 +298,7 @@ func addStudent(session neo4j.Session, user interface{}, token string) error {
 		"email":     student.Email,
 		"firstName": student.FirstName,
 		"lastName":  student.LastName,
-		"password":  encryptedPassword,
+		"password":  student.Password,
 		"token":     token,
 	}
 
@@ -181,11 +339,6 @@ func addTeacher(session neo4j.Session, user interface{}, token string) error {
 		`
 	}
 
-	encryptedPassword, err := helpers.EncryptPassword(professor.Password)
-	if err != nil {
-		return err
-	}
-
 	query := fmt.Sprintf(`
 		%s 
 		SET p.email=$email, p.firstName=$firstName, p.lastName=$lastName, p.password=$password, p.token=$token 
@@ -196,7 +349,7 @@ func addTeacher(session neo4j.Session, user interface{}, token string) error {
 		"email":     professor.Email,
 		"firstName": professor.FirstName,
 		"lastName":  professor.LastName,
-		"password":  encryptedPassword,
+		"password":  professor.Password,
 		"token":     token,
 	}
 
