@@ -9,7 +9,7 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func GetFaculties(session neo4j.Session) ([]repositories.SpinnerItem, error) {
+func GetFaculties(session neo4j.Session) ([]repositories.Item, error) {
 	query := `
 		MATCH (f:Faculty) 
 		RETURN f.name AS name
@@ -18,7 +18,7 @@ func GetFaculties(session neo4j.Session) ([]repositories.SpinnerItem, error) {
 	return getSpinnerItems(session, query, map[string]interface{}{}, "name")
 }
 
-func GetSpecializations(session neo4j.Session, faculty string) ([]repositories.SpinnerItem, error) {
+func GetSpecializations(session neo4j.Session, faculty string) ([]repositories.Item, error) {
 	query := fmt.Sprintf(`
 		MATCH (s:Specialization)-[r:IN_FACULTY]->(f:Faculty) 
 		WHERE f.name = '%s' 
@@ -28,7 +28,7 @@ func GetSpecializations(session neo4j.Session, faculty string) ([]repositories.S
 	return getSpinnerItems(session, query, map[string]interface{}{}, "name")
 }
 
-func GetGroups(session neo4j.Session, faculty string, specialization string) ([]repositories.SpinnerItem, error) {
+func GetGroups(session neo4j.Session, faculty string, specialization string) ([]repositories.Item, error) {
 	query := fmt.Sprintf(`
 		MATCH (g:Group)-[gs:HAS_SPECIALIZATION]->(s:Specialization)-[sf:IN_FACULTY]->(f:Faculty) 
 		WHERE f.name = '%s' AND s.name = '%s'
@@ -38,14 +38,14 @@ func GetGroups(session neo4j.Session, faculty string, specialization string) ([]
 	return getSpinnerItems(session, query, map[string]interface{}{}, "group")
 }
 
-func GetSubjects(session neo4j.Session, path string, token string, forUserOnly bool) ([]repositories.SpinnerItem, error) {
+func GetSubjects(session neo4j.Session, path string, token string, forUserOnly bool) ([]repositories.Item, error) {
 	var err error
 	tokenInfo := repositories.TokenInfo{}
 
 	if token != helpers.EmptyStringParameter {
 		tokenInfo, err = GetTokenInfo(session, token)
 		if err != nil && forUserOnly {
-			return []repositories.SpinnerItem{}, helpers.InvalidTokenError(path, err)
+			return []repositories.Item{}, helpers.InvalidTokenError(path, err)
 		}
 	}
 
@@ -56,7 +56,7 @@ func GetSubjects(session neo4j.Session, path string, token string, forUserOnly b
 	params := map[string]interface{}{}
 
 	if forUserOnly {
-		if tokenInfo.Label == studentLabel {
+		if tokenInfo.Label == StudentLabel {
 			query = `
 				MATCH (stud:Student)-[r:ENROLLED_IN]->(s:Subject) 
 				WHERE stud.ID = $id 
@@ -78,30 +78,30 @@ func GetSubjects(session neo4j.Session, path string, token string, forUserOnly b
 	return getSpinnerItems(session, query, params, "name")
 }
 
-func getSpinnerItems(session neo4j.Session, query string, params map[string]interface{}, recordName string) ([]repositories.SpinnerItem, error) {
+func getSpinnerItems(session neo4j.Session, query string, params map[string]interface{}, recordName string) ([]repositories.Item, error) {
 	subjects, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
 
 		fmt.Printf("query: %s\n", query)
 
 		records, err := tx.Run(query, params)
 		if err != nil {
-			return []repositories.SpinnerItem{}, err
+			return []repositories.Item{}, err
 		}
-		var results []repositories.SpinnerItem
+		var results []repositories.Item
 		for records.Next() {
 			name, err := helpers.GetStringParameterFromQuery(records.Record(), recordName, true, true)
 			if err != nil {
-				return []repositories.SpinnerItem{}, err
+				return []repositories.Item{}, err
 			}
 
-			results = append(results, repositories.SpinnerItem{Name: name})
+			results = append(results, repositories.Item{Name: name})
 		}
 
 		return results, nil
 	})
 	if err != nil {
-		return []repositories.SpinnerItem{}, err
+		return []repositories.Item{}, err
 	}
 
-	return subjects.([]repositories.SpinnerItem), nil
+	return subjects.([]repositories.Item), nil
 }

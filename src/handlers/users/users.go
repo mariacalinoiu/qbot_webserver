@@ -2,6 +2,7 @@ package users
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -32,8 +33,8 @@ func HandleUsers(w http.ResponseWriter, r *http.Request, logger *log.Logger, dri
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodGet:
 		response, status, err = getUser(r, session, path)
-	case http.MethodPost:
-		// TODO: sign up
+	case http.MethodPost, http.MethodPut:
+		response, status, err = signUp(r, session, path)
 	case http.MethodDelete:
 		status, err = deleteUser(r, session, path)
 	default:
@@ -96,4 +97,64 @@ func deleteUser(r *http.Request, session neo4j.Session, path string) (int, error
 	}
 
 	return http.StatusOK, nil
+}
+
+func signUp(r *http.Request, session neo4j.Session, path string) ([]byte, int, error) {
+	userType, err := helpers.GetStringParameter(r, repositories.UserType, true)
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
+	}
+	var user interface{}
+	if userType == datasources.StudentLabel {
+		user, err = extractStudent(r)
+	} else {
+		user, err = extractTeacher(r)
+	}
+	if err != nil {
+		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
+	}
+
+	tokenItem, err := datasources.AddUser(session, userType, user)
+	if err != nil {
+		return nil, http.StatusInternalServerError, helpers.GetError(path, err)
+	}
+
+	response, err := json.Marshal(tokenItem)
+	if err != nil {
+		return nil, http.StatusInternalServerError, helpers.MarshalError(path, err)
+	}
+
+	return response, http.StatusOK, nil
+}
+
+func extractStudent(r *http.Request) (repositories.Student, error) {
+	var unmarshalledStudent repositories.Student
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return repositories.Student{}, err
+	}
+
+	err = json.Unmarshal(body, &unmarshalledStudent)
+	if err != nil {
+		return repositories.Student{}, err
+	}
+
+	return unmarshalledStudent, nil
+}
+
+func extractTeacher(r *http.Request) (repositories.Professor, error) {
+	var unmarshalledTeacher repositories.Professor
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return repositories.Professor{}, err
+	}
+
+	err = json.Unmarshal(body, &unmarshalledTeacher)
+	if err != nil {
+		return repositories.Professor{}, err
+	}
+
+	return unmarshalledTeacher, nil
 }

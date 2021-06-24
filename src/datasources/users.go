@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	studentLabel = "Student"
-	teacherLabel = "Teacher"
+	StudentLabel = "Student"
+	TeacherLabel = "Teacher"
 )
 
 func GetTokenInfo(session neo4j.Session, token string) (repositories.TokenInfo, error) {
@@ -67,7 +67,7 @@ func DeleteUser(session neo4j.Session, path string, token string) error {
 		WHERE s.ID = $ID
 		DETACH DELETE s
 	`
-	if tokenInfo.Label == teacherLabel {
+	if tokenInfo.Label == TeacherLabel {
 		query = `
 			MATCH (p:Teacher) 
 			WHERE p.ID = $ID
@@ -82,17 +82,144 @@ func DeleteUser(session neo4j.Session, path string, token string) error {
 	return helpers.WriteTX(session, query, params)
 }
 
+func AddUser(session neo4j.Session, userType string, user interface{}) (repositories.Item, error) {
+	var err error
+	token := helpers.GenerateToken(20)
+	if userType == StudentLabel {
+		err = addStudent(session, user, token)
+	}
+
+	err = addTeacher(session, user, token)
+	if err != nil {
+		return repositories.Item{}, err
+	}
+
+	return repositories.Item{Name: token}, nil
+}
+
 func GetUser(session neo4j.Session, path string, token string) (interface{}, error) {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil {
 		return repositories.User{}, helpers.InvalidTokenError(path, err)
 	}
 
-	if tokenInfo.Label == studentLabel {
+	if tokenInfo.Label == StudentLabel {
 		return getStudent(session, tokenInfo, token)
 	}
 
 	return getTeacher(session, tokenInfo, token)
+}
+
+func addStudent(session neo4j.Session, user interface{}, token string) error {
+	student := user.(repositories.Student)
+	queryPrefix := ""
+	studentID := student.ID
+	var err error
+	if studentID != 0 {
+		queryPrefix = `
+			MATCH (s:Student {ID:$studentID}) 
+		`
+	} else {
+		studentID, err = getNextNodeID(session, "Student", "ID")
+		if err != nil {
+			return err
+		}
+
+		queryPrefix = `
+			CREATE (s:Student {ID:$studentID}) 
+		`
+	}
+
+	encryptedPassword, err := helpers.EncryptPassword(student.Password)
+	if err != nil {
+		return err
+	}
+
+	query := fmt.Sprintf(`
+		%s 
+		SET s.year = '%s', s.email=$email, s.firstName=$firstName, s.lastName=$lastName, s.password=$password, s.token=$token 
+	`, queryPrefix, student.Year)
+
+	params := map[string]interface{}{
+		"studentID": studentID,
+		"email":     student.Email,
+		"firstName": student.FirstName,
+		"lastName":  student.LastName,
+		"password":  encryptedPassword,
+		"token":     token,
+	}
+
+	err = helpers.WriteTX(session, query, params)
+	if err != nil {
+		return err
+	}
+
+	query = `
+		MATCH (s:Student {ID:$studentID}), (g:Group {gID:$gID}) 
+		MERGE (s)-[r:MEMBER_OF]->(g) 
+	`
+	params = map[string]interface{}{
+		"studentID": studentID,
+		"gID":       student.Group,
+	}
+
+	return helpers.WriteTX(session, query, params)
+}
+
+func addTeacher(session neo4j.Session, user interface{}, token string) error {
+	professor := user.(repositories.Professor)
+	queryPrefix := ""
+	teacherID := professor.ID
+	var err error
+	if teacherID != 0 {
+		queryPrefix = `
+			MATCH (p:Teacher {ID:$teacherID}) 
+		`
+	} else {
+		teacherID, err = getNextNodeID(session, "Teacher", "ID")
+		if err != nil {
+			return err
+		}
+
+		queryPrefix = `
+			CREATE (p:Teacher {ID:$teacherID}) 
+		`
+	}
+
+	encryptedPassword, err := helpers.EncryptPassword(professor.Password)
+	if err != nil {
+		return err
+	}
+
+	query := fmt.Sprintf(`
+		%s 
+		SET p.email=$email, p.firstName=$firstName, p.lastName=$lastName, p.password=$password, p.token=$token 
+	`, queryPrefix)
+
+	params := map[string]interface{}{
+		"teacherID": teacherID,
+		"email":     professor.Email,
+		"firstName": professor.FirstName,
+		"lastName":  professor.LastName,
+		"password":  encryptedPassword,
+		"token":     token,
+	}
+
+	err = helpers.WriteTX(session, query, params)
+	if err != nil {
+		return err
+	}
+
+	query = fmt.Sprintf(`
+		MATCH (p:Teacher {ID:$teacherID}), (f:Faculty {name:'%s'}) 
+		MERGE (p)-[r:AFILLIATED_TO]->(f) 
+	`, professor.Faculty)
+
+	params = map[string]interface{}{
+		"teacherID": teacherID,
+	}
+
+	return helpers.WriteTX(session, query, params)
 }
 
 func getTeacher(session neo4j.Session, tokenInfo repositories.TokenInfo, token string) (interface{}, error) {
@@ -199,7 +326,7 @@ func getSubjectsForUser(session neo4j.Session, tokenInfo repositories.TokenInfo)
 		WHERE s.ID = $ID 
 		RETURN subj.name 
 	`
-	if tokenInfo.Label == teacherLabel {
+	if tokenInfo.Label == TeacherLabel {
 		query = `
 			MATCH (p:Teacher)-[:TEACHES]->(subj:Subject) 
 			WHERE p.ID = $ID 

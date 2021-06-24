@@ -2,6 +2,7 @@ package repositories
 
 const (
 	Token          = "token"
+	UserType       = "type"
 	Faculty        = "faculty"
 	Specialization = "specialization"
 	Subject        = "subject"
@@ -13,12 +14,8 @@ const (
 	Search         = "search"
 )
 
-type SpinnerItem struct {
+type Item struct {
 	Name string `json:"name"`
-}
-
-type TokenItem struct {
-	Token string `json:"token"`
 }
 
 type ResponseItem struct {
