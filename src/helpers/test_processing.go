@@ -59,7 +59,7 @@ func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Region stri
 }
 
 func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest) {
-	// TODO save test image to S3, call Python script to grade, save graded image to S3, run query below and MERGE relationship
+	// TODO: call Python script to grade, run query below and MERGE relationship
 
 	//query := fmt.Sprintf(`
 	//	MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
