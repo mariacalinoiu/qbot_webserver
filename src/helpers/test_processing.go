@@ -106,8 +106,8 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	} else {
 		retString := python3.PyUnicode_AsUTF8(email)
 		test.Author.Email = retString
+		email.DecRef()
 	}
-	email.DecRef()
 
 	link := python3.PyDict_GetItemString(evalDict, "graded_image_link")
 	if link == nil {
@@ -116,8 +116,8 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	} else {
 		retString := python3.PyUnicode_AsUTF8(link)
 		test.GradedTestImageURL = retString
+		link.DecRef()
 	}
-	link.DecRef()
 
 	grade := python3.PyDict_GetItemString(evalDict, "grade")
 	if grade == nil {
@@ -126,8 +126,8 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	} else {
 		retInt := python3.PyLong_AsLong(grade)
 		test.Grade = retInt
+		grade.DecRef()
 	}
-	grade.DecRef()
 
 	answers := python3.PyDict_GetItemString(evalDict, "answers")
 	if answers == nil {
@@ -143,8 +143,8 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 		}
 
 		test.Answers = answerMap
+		answers.DecRef()
 	}
-	answers.DecRef()
 
 	return test
 }
