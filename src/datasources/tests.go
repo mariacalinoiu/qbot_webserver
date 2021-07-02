@@ -93,13 +93,13 @@ func SignalErrorForTest(session neo4j.Session, path string, token string, testID
 	return helpers.WriteTX(session, query, params)
 }
 
-func GradeTest(logger *log.Logger, session neo4j.Session, path string, token string, test repositories.CompletedTest) error {
+func GradeTest(logger *log.Logger, session neo4j.Session, path string, token string, test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) error {
 	tokenInfo, err := GetTokenInfo(session, token)
 	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
 
-	go helpers.GradeTestImage(logger, session, tokenInfo.ID, test)
+	go helpers.GradeTestImage(logger, session, tokenInfo.ID, test, s3Bucket, s3Region, s3Profile)
 
 	return nil
 }

@@ -13,7 +13,7 @@ import (
 	"qbot_webserver/src/repositories"
 )
 
-func HandleTestGrade(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string) {
+func HandleTestGrade(w http.ResponseWriter, r *http.Request, logger *log.Logger, driver neo4j.Driver, path string, s3Bucket string, s3Region string, s3Profile string) {
 	var response []byte
 	var status int
 	var err error
@@ -32,7 +32,7 @@ func HandleTestGrade(w http.ResponseWriter, r *http.Request, logger *log.Logger,
 	case http.MethodOptions:
 		helpers.SetAccessControlHeaders(w)
 	case http.MethodPost:
-		status, err = gradeTest(r, logger, session, path)
+		status, err = gradeTest(r, logger, session, path, s3Bucket, s3Region, s3Profile)
 	default:
 		status = http.StatusBadRequest
 		err = helpers.WrongMethodError(path)
@@ -59,7 +59,7 @@ func HandleTestGrade(w http.ResponseWriter, r *http.Request, logger *log.Logger,
 	helpers.PrintStatus(logger, status)
 }
 
-func gradeTest(r *http.Request, logger *log.Logger, session neo4j.Session, path string) (int, error) {
+func gradeTest(r *http.Request, logger *log.Logger, session neo4j.Session, path string, s3Bucket string, s3Region string, s3Profile string) (int, error) {
 	token, err := helpers.GetToken(r)
 	if err != nil {
 		return http.StatusBadRequest, helpers.InvalidTokenError(path, err)
@@ -69,7 +69,7 @@ func gradeTest(r *http.Request, logger *log.Logger, session neo4j.Session, path 
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
 
-	err = datasources.GradeTest(logger, session, path, token, test)
+	err = datasources.GradeTest(logger, session, path, token, test, s3Bucket, s3Region, s3Profile)
 	if err != nil {
 		return http.StatusInternalServerError, helpers.GetError(path, err)
 	}

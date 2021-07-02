@@ -98,7 +98,7 @@ func newServer(driver neo4j.Driver, s3Bucket string, s3Region string, s3Profile 
 	)
 	s.mux.HandleFunc("/tests/grade",
 		func(w http.ResponseWriter, r *http.Request) {
-			tests.HandleTestGrade(w, r, s.logger, driver, "testGrade")
+			tests.HandleTestGrade(w, r, s.logger, driver, "testGrade", s3Bucket, s3Region, s3Profile)
 		},
 	)
 	s.mux.HandleFunc("/tests/notifications",
