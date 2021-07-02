@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
@@ -16,13 +17,29 @@ func GetAnswerMapFromQuery(record neo4j.Record, key string, shouldCheck bool, ma
 		return map[int][]string{}, nil
 	}
 
+	return GetAnswerMapFromNeo4jString(stringAnswers)
+}
+
+func GetAnswerMapFromNeo4jString(stringAnswers string) (map[int][]string, error) {
 	var answers map[int][]string
-	err = json.Unmarshal([]byte(stringAnswers), &answers)
+	err := json.Unmarshal([]byte(stringAnswers), &answers)
 	if err != nil {
 		return map[int][]string{}, err
 	}
 
 	return answers, nil
+}
+
+func GetAnswerMapFromPythonString(stringAnswers string) (map[int][]string, error) {
+	stringAnswers = strings.ReplaceAll(stringAnswers, ` `, ``)
+	stringAnswers = strings.ReplaceAll(stringAnswers, `'`, `"`)
+	var answers [][]string
+	err := json.Unmarshal([]byte(stringAnswers), &answers)
+	if err != nil {
+		return map[int][]string{}, err
+	}
+
+	return getMapFromListOfLists(answers), nil
 }
 
 func GetStringFromAnswerMap(answers map[int][]string) (string, error) {
@@ -83,4 +100,13 @@ func GetBoolParameterFromQuery(record neo4j.Record, key string, shouldCheck bool
 	}
 
 	return param, nil
+}
+
+func getMapFromListOfLists(stringAnswers [][]string) map[int][]string {
+	answers := make(map[int][]string, len(stringAnswers))
+	for key, value := range stringAnswers {
+		answers[key] = value
+	}
+
+	return answers
 }

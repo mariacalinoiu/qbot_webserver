@@ -80,16 +80,17 @@ type Test struct {
 
 type CompletedTest struct {
 	Test
-	TestImageURL            string  `json:"testImageURL"`
-	GradedTestImageURL      string  `json:"gradedTestImageURL"`
-	Grade                   int     `json:"grade"`
-	GradeTimestamp          int     `json:"gradeTimestamp"`
-	CorrectedGrade          int     `json:"correctedGrade"`
-	CorrectedGradeTimestamp int     `json:"correctedGradeTimestamp"`
-	NotificationMessage     string  `json:"notificationMessage"`
-	ImageBytes              string  `json:"imageBytes"`
-	Feedback                string  `json:"feedback"`
-	Author                  Student `json:"student"`
+	TestImageURL            string           `json:"testImageURL"`
+	GradedTestImageURL      string           `json:"gradedTestImageURL"`
+	Grade                   int              `json:"grade"`
+	GradeTimestamp          int              `json:"gradeTimestamp"`
+	CorrectedGrade          int              `json:"correctedGrade"`
+	CorrectedGradeTimestamp int              `json:"correctedGradeTimestamp"`
+	NotificationMessage     string           `json:"notificationMessage"`
+	ImageBytes              string           `json:"imageBytes"`
+	Feedback                string           `json:"feedback"`
+	Author                  Student          `json:"student"`
+	Answers                 map[int][]string `json:"answers"`
 }
 
 type Objective struct {

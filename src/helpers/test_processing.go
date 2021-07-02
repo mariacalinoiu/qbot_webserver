@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"C"
-
 	"github.com/DataDog/go-python3"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -62,12 +62,11 @@ func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Region stri
 	return uploadToS3(s3Bucket, s3Region, s3Profile, filenameJPG, testTemplatesFolder)
 }
 
-func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) {
-	defer python3.Py_Finalize()
-	python3.Py_Initialize()
-	python3.PyRun_SimpleString(getGradingScript(
-		test, s3Bucket, s3Region, s3Profile,
-	))
+func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest,
+	s3Bucket string, s3Region string, s3Profile string,
+) {
+	test = runPythonScriptToGrade(test, s3Bucket, s3Region, s3Profile)
+	fmt.Printf("%+v\n", test)
 
 	//query := fmt.Sprintf(`
 	//	MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
@@ -88,6 +87,66 @@ func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, te
 	//if err != nil {
 	//	logger.Printf("error grading test %d: %s", test.ID, err.Error())
 	//}
+}
+
+func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) repositories.CompletedTest {
+	defer python3.Py_Finalize()
+	python3.Py_Initialize()
+	python3.PyRun_SimpleString(getGradingScript(
+		test, s3Bucket, s3Region, s3Profile,
+	))
+
+	evalModule := python3.PyImport_AddModule("__main__")
+	evalDict := python3.PyModule_GetDict(evalModule)
+
+	email := python3.PyDict_GetItemString(evalDict, "student_email")
+	if email == nil {
+		python3.PyErr_Print()
+		fmt.Println("grading error: could not retrieve email")
+	} else {
+		retString := python3.PyUnicode_AsUTF8(email)
+		test.Author.Email = retString
+	}
+	email.DecRef()
+
+	link := python3.PyDict_GetItemString(evalDict, "graded_image_link")
+	if link == nil {
+		python3.PyErr_Print()
+		fmt.Println("grading error: could not retrieve link")
+	} else {
+		retString := python3.PyUnicode_AsUTF8(link)
+		test.GradedTestImageURL = retString
+	}
+	link.DecRef()
+
+	grade := python3.PyDict_GetItemString(evalDict, "grade")
+	if grade == nil {
+		python3.PyErr_Print()
+		fmt.Println("grading error: could not retrieve grade")
+	} else {
+		retInt := python3.PyLong_AsLong(grade)
+		test.Grade = retInt
+	}
+	grade.DecRef()
+
+	answers := python3.PyDict_GetItemString(evalDict, "answers")
+	if answers == nil {
+		python3.PyErr_Print()
+		fmt.Println("grading error: could not retrieve answers")
+	} else {
+		retString := python3.PyUnicode_AsUTF8(answers)
+		fmt.Printf("%+v\n", retString)
+
+		answerMap, err := GetAnswerMapFromPythonString(retString)
+		if err != nil {
+			fmt.Printf("grading error: could not convert answers: %s\n", err.Error())
+		}
+
+		test.Answers = answerMap
+	}
+	answers.DecRef()
+
+	return test
 }
 
 func convertPdfToJPG(filenamePDF string, filenameJPG string) error {
@@ -579,18 +638,18 @@ def find_rotated_perspective_answers(image_url, template_url, correct_answers, n
 	grade, percentage = calculate_grade(all_answers, correct_answers, multiple_answers, partial_scoring, total_points,
 										ex_officio)
 
-	return student_email, all_answers, grade, percentage, graded_image_link
+	return student_email, '%%s' %% all_answers, grade, percentage, graded_image_link
 
 
 student_email, answers, grade, percentage, graded_image_link = find_rotated_perspective_answers(
 	"%s", "%s", %v, %d, %d, %s, %s, %d, %d, "%s", "%s", "%s"
 )
 
-print(student_email)
-print(answers)
-print(grade)
-print(percentage)
-print(graded_image_link)
+#print(student_email)
+#print(answers)
+#print(grade)
+#print(percentage)
+#print(graded_image_link)
 
 	`, test.TestImageURL,
 		test.Test.TemplateImageURL,
