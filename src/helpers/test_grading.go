@@ -3,93 +3,47 @@ package handlers
 import (
 	"fmt"
 	"log"
-	"math"
-	"os"
 	"sort"
-	"strconv"
-	"strings"
+	"time"
 
-	"C"
 	"github.com/DataDog/go-python3"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/jung-kurt/gofpdf"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
-	"gopkg.in/gographics/imagick.v2/imagick"
 
 	"qbot_webserver/src/repositories"
 )
 
-const (
-	GradingErrorNotification   = "Test requires correction!"
-	TestGradedNotification     = "Test has been graded!"
-	TestCorrectionNotification = "Test has been corrected!"
-
-	margin           = 25
-	topMargin        = 20
-	headerCellWidth  = 65
-	headerCellHeight = 7
-	headerLineHeight = 7
-	tableCellSize    = 8
-	spacingLarge     = 25
-	spacingSmall     = 12
-	a4height         = 297
-	a4width          = 210
-
-	testTemplatesFolder = "test_templates"
-)
-
-func GenerateTestTemplate(test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) (string, error) {
-	filenamePrefix := strings.ReplaceAll(fmt.Sprintf("/tmp/%s_%s", test.Subject, test.Name), " ", "_")
-	filenamePDF := fmt.Sprintf("%s.pdf", filenamePrefix)
-	filenameJPG := fmt.Sprintf("%s.jpg", filenamePrefix)
-
-	err := createLocalPDF(test, filenamePDF)
-	if err != nil {
-		return "", err
-	}
-
-	err = convertPdfToJPG(filenamePDF, filenameJPG)
-	if err != nil {
-		return "", err
-	}
-	defer deleteFromLocal(filenamePDF, filenameJPG, logger)
-
-	return uploadToS3(s3Bucket, s3Region, s3Profile, filenameJPG, testTemplatesFolder)
-}
-
 func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest,
 	s3Bucket string, s3Region string, s3Profile string,
 ) {
-	test = runPythonScriptToGrade(test, s3Bucket, s3Region, s3Profile)
-	fmt.Printf("%+v\n", test)
+	test = runPythonScriptToGrade(logger, test, s3Bucket, s3Region, s3Profile)
 
-	//query := fmt.Sprintf(`
-	//	MATCH (s:Student {ID:$studentID})-[st:COMPLETED]->(t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
-	//	SET st.grade = $grade, st.timestamp = $timestamp, st.gradedTestImage = $gradedTestImage,
-	//			st.testImage = $testImage, st.notificationMessage = '%s'
-	//`, TestGradedNotification)
-	//params := map[string]interface{}{
-	//	"studentID":       studentID,
-	//	"testID":          test.ID,
-	//	"teacherID":       teacherID,
-	//	"grade":           grade,
-	//	"timestamp":       time.Now().Unix(),
-	//	"gradedTestImage": gradedImageURL,
-	//	"testImage":       testImageURL,
-	//}
-	//
-	//err := helpers.WriteTX(session, query, params)
-	//if err != nil {
-	//	logger.Printf("error grading test %d: %s", test.ID, err.Error())
-	//}
+	answerString, err := GetStringFromAnswerMap(test.Answers)
+	if err != nil {
+		logger.Printf("grading error for test %d: could not get string from answer map: %s", test.ID, err.Error())
+	}
+
+	query := fmt.Sprintf(`
+		MATCH (s:Student {email:'%s'}), (t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
+		MERGE (s)-[st:COMPLETED]->(t)
+		SET st.grade = $grade, st.timestamp = $timestamp, st.gradedTestImage = $gradedTestImage,
+				st.testImage = $testImage, st.notificationMessage = '%s', st.answers = '%s'
+	`, test.Author.Email, TestGradedNotification, answerString)
+	params := map[string]interface{}{
+		"testID":          test.ID,
+		"teacherID":       teacherID,
+		"grade":           test.Grade,
+		"timestamp":       time.Now().Unix(),
+		"gradedTestImage": test.GradedTestImageURL,
+		"testImage":       test.TestImageURL,
+	}
+
+	err = WriteTX(session, query, params)
+	if err != nil {
+		logger.Printf("grading error for test %d: transaction failed: %s", test.ID, err.Error())
+	}
 }
 
-func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) repositories.CompletedTest {
+func runPythonScriptToGrade(logger *log.Logger, test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) repositories.CompletedTest {
 	defer python3.Py_Finalize()
 	python3.Py_Initialize()
 	python3.PyRun_SimpleString(getGradingScript(
@@ -102,7 +56,7 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	email := python3.PyDict_GetItemString(evalDict, "student_email")
 	if email == nil {
 		python3.PyErr_Print()
-		fmt.Println("grading error: could not retrieve email")
+		logger.Printf("grading error for test %d: could not retrieve email\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(email)
 		test.Author.Email = retString
@@ -112,7 +66,7 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	link := python3.PyDict_GetItemString(evalDict, "graded_image_link")
 	if link == nil {
 		python3.PyErr_Print()
-		fmt.Println("grading error: could not retrieve link")
+		logger.Printf("grading error for test %d: could not retrieve link\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(link)
 		test.GradedTestImageURL = retString
@@ -122,7 +76,7 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	grade := python3.PyDict_GetItemString(evalDict, "grade")
 	if grade == nil {
 		python3.PyErr_Print()
-		fmt.Println("grading error: could not retrieve grade")
+		logger.Printf("grading error for test %d: could not retrieve grade\n", test.ID)
 	} else {
 		retInt := python3.PyLong_AsLong(grade)
 		test.Grade = retInt
@@ -132,14 +86,12 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	answers := python3.PyDict_GetItemString(evalDict, "answers")
 	if answers == nil {
 		python3.PyErr_Print()
-		fmt.Println("grading error: could not retrieve answers")
+		logger.Printf("grading error for test %d: could not retrieve answers\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(answers)
-		fmt.Printf("%+v\n", retString)
-
 		answerMap, err := GetAnswerMapFromPythonString(retString)
 		if err != nil {
-			fmt.Printf("grading error: could not convert answers: %s\n", err.Error())
+			logger.Printf("grading error for test %d: could not convert answers: %s\n", test.ID, err.Error())
 		}
 
 		test.Answers = answerMap
@@ -147,174 +99,6 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	}
 
 	return test
-}
-
-func convertPdfToJPG(filenamePDF string, filenameJPG string) error {
-	imagick.Initialize()
-	defer imagick.Terminate()
-
-	mw := imagick.NewMagickWand()
-	defer mw.Destroy()
-
-	if err := mw.SetResolution(300, 300); err != nil {
-		return err
-	}
-	if err := mw.ReadImage(filenamePDF); err != nil {
-		return err
-	}
-	if err := mw.SetImageAlphaChannel(imagick.ALPHA_CHANNEL_FLATTEN); err != nil {
-		return err
-	}
-	if err := mw.SetCompressionQuality(95); err != nil {
-		return err
-	}
-	mw.SetIteratorIndex(0)
-	if err := mw.SetFormat("jpg"); err != nil {
-		return err
-	}
-
-	return mw.WriteImage(filenameJPG)
-}
-
-func createLocalPDF(test repositories.Test, filename string) error {
-	header := make([]string, test.NrAnswerOptions+1)
-	gridSizes := make([]uint, test.NrAnswerOptions+1)
-	header[0] = "Nr."
-	gridSizes[0] = 1
-
-	for i := 1; i <= test.NrAnswerOptions; i++ {
-		header[i] = string(rune('A' + i - 1))
-		gridSizes[i] = 1
-	}
-
-	contents := make([][]string, test.NrQuestions)
-	for i := 0; i < test.NrQuestions; i++ {
-		row := []string{strconv.Itoa(i + 1)}
-		for j := 0; j < test.NrAnswerOptions; j++ {
-			row = append(row, "")
-		}
-
-		contents[i] = row
-	}
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(margin, topMargin, margin)
-	pdf.AddPage()
-	pdf.SetFont("Times", "B", 14)
-	pdf.Cell(headerCellWidth, headerCellHeight, "First Name:")
-	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
-	pdf.Ln(headerLineHeight)
-	pdf.Cell(headerCellWidth, headerCellHeight, "Last Name:")
-	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
-	pdf.Ln(headerLineHeight)
-	pdf.Cell(headerCellWidth, headerCellHeight, "University e-mail address:")
-	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
-	pdf.Ln(headerLineHeight)
-	pdf.Cell(headerCellWidth, headerCellHeight, "Year:")
-	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
-	pdf.Ln(headerLineHeight)
-	pdf.Cell(headerCellWidth, headerCellHeight, "Group:")
-	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
-	pdf.Ln(headerLineHeight)
-	pdf.Cell(headerCellWidth, headerCellHeight, "Specialization:")
-	pdf.Cell(headerCellWidth, headerCellHeight, "_________________________________")
-
-	pdf.Ln(spacingLarge)
-	pdf.SetFont("Times", "B", 20)
-	pdf.CellFormat(0, 10, test.Name, "", 0, "C", false, 0, "")
-	pdf.Ln(spacingSmall)
-	pdf.SetFont("Times", "B", 17)
-	pdf.CellFormat(0, 10, test.Subject, "", 0, "C", false, 0, "")
-	pdf.Ln(spacingLarge)
-
-	pdf.SetFont("Times", "B", 14)
-	pdf.SetFillColor(255, 255, 255)
-	tableWidth := float64(0)
-	for index, str := range header {
-		width := float64(tableCellSize)
-		if index == 0 {
-			width = tableCellSize * 2
-		}
-		pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
-		tableWidth += width
-	}
-	spaceBetweenTables := a4width - 2*margin - 2*tableWidth
-	pdf.Cell(spaceBetweenTables, tableCellSize, "")
-	for index, str := range header {
-		width := float64(tableCellSize)
-		if index == 0 {
-			width = tableCellSize * 2
-		}
-		pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
-	}
-
-	pdf.Ln(-1)
-
-	nrRows := int(math.Ceil(float64(test.NrQuestions) / float64(2)))
-
-	for questionNr := 0; questionNr < nrRows; questionNr++ {
-		for index, str := range contents[questionNr] {
-			width := float64(tableCellSize)
-			if index == 0 {
-				width = tableCellSize * 2
-			}
-			pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
-		}
-		pdf.Cell(spaceBetweenTables, tableCellSize, "")
-		if nrRows+questionNr < len(contents) {
-			for index, str := range contents[nrRows+questionNr] {
-				width := float64(tableCellSize)
-				if index == 0 {
-					width = tableCellSize * 2
-				}
-				pdf.CellFormat(width, tableCellSize, str, "1", 0, "C", true, 0, "")
-			}
-		}
-
-		pdf.Ln(-1)
-	}
-
-	return pdf.OutputFileAndClose(filename)
-}
-
-func uploadToS3(s3Bucket string, s3Region string, s3Profile string, filename string, folder string) (string, error) {
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region:      aws.String(s3Region),
-		Credentials: credentials.NewSharedCredentials("", s3Profile),
-	}))
-
-	uploader := s3manager.NewUploader(sess)
-
-	f, err := os.Open(filename)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file %q, %v", filename, err)
-	}
-
-	split := strings.Split(filename, "/")
-	filename = split[len(split)-1]
-
-	result, err := uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String(s3Bucket),
-		Key:    aws.String(fmt.Sprintf("%s/%s", folder, filename)),
-		Body:   f,
-		ACL:    aws.String(s3.ObjectCannedACLPublicRead),
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to upload file, %v", err)
-	}
-
-	return aws.StringValue(&result.Location), nil
-}
-
-func deleteFromLocal(filenamePDF string, filenameJPG string, logger *log.Logger) {
-	err := os.Remove(filenamePDF)
-	if err != nil {
-		logger.Printf("could not delete %s: %s", filenamePDF, err.Error())
-	}
-	err = os.Remove(filenameJPG)
-	if err != nil {
-		logger.Printf("could not delete %s: %s", filenameJPG, err.Error())
-	}
 }
 
 func getGradingScript(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) string {
