@@ -15,7 +15,20 @@ import (
 func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest,
 	s3Bucket string, s3Region string, s3Profile string,
 ) {
-	test = runPythonScriptToGrade(logger, test, s3Bucket, s3Region, s3Profile)
+	attempts := 3
+	var err error
+	for attempts > 0 {
+		test, err = runPythonScriptToGrade(test, s3Bucket, s3Region, s3Profile)
+		if err != nil {
+			logger.Printf(err.Error())
+			attempts -= 1
+		} else {
+			attempts = 0
+		}
+	}
+	if err != nil {
+		return
+	}
 
 	answerString, err := GetStringFromAnswerMap(test.Answers)
 	if err != nil {
@@ -43,7 +56,7 @@ func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, te
 	}
 }
 
-func runPythonScriptToGrade(logger *log.Logger, test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) repositories.CompletedTest {
+func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) (repositories.CompletedTest, error) {
 	defer python3.Py_Finalize()
 	python3.Py_Initialize()
 	python3.PyRun_SimpleString(getGradingScript(
@@ -56,7 +69,7 @@ func runPythonScriptToGrade(logger *log.Logger, test repositories.CompletedTest,
 	email := python3.PyDict_GetItemString(evalDict, "student_email")
 	if email == nil {
 		python3.PyErr_Print()
-		logger.Printf("grading error for test %d: could not retrieve email\n", test.ID)
+		return test, fmt.Errorf("grading error for test %d: could not retrieve email\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(email)
 		test.Author.Email = retString
@@ -66,7 +79,7 @@ func runPythonScriptToGrade(logger *log.Logger, test repositories.CompletedTest,
 	link := python3.PyDict_GetItemString(evalDict, "graded_image_link")
 	if link == nil {
 		python3.PyErr_Print()
-		logger.Printf("grading error for test %d: could not retrieve link\n", test.ID)
+		return test, fmt.Errorf("grading error for test %d: could not retrieve link\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(link)
 		test.GradedTestImageURL = retString
@@ -76,7 +89,7 @@ func runPythonScriptToGrade(logger *log.Logger, test repositories.CompletedTest,
 	grade := python3.PyDict_GetItemString(evalDict, "grade")
 	if grade == nil {
 		python3.PyErr_Print()
-		logger.Printf("grading error for test %d: could not retrieve grade\n", test.ID)
+		return test, fmt.Errorf("grading error for test %d: could not retrieve grade\n", test.ID)
 	} else {
 		retInt := python3.PyLong_AsLong(grade)
 		test.Grade = retInt
@@ -86,19 +99,19 @@ func runPythonScriptToGrade(logger *log.Logger, test repositories.CompletedTest,
 	answers := python3.PyDict_GetItemString(evalDict, "answers")
 	if answers == nil {
 		python3.PyErr_Print()
-		logger.Printf("grading error for test %d: could not retrieve answers\n", test.ID)
+		return test, fmt.Errorf("grading error for test %d: could not retrieve answers\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(answers)
 		answerMap, err := GetAnswerMapFromPythonString(retString)
 		if err != nil {
-			logger.Printf("grading error for test %d: could not convert answers: %s\n", test.ID, err.Error())
+			return test, fmt.Errorf("grading error for test %d: could not convert answers: %s\n", test.ID, err.Error())
 		}
 
 		test.Answers = answerMap
 		answers.DecRef()
 	}
 
-	return test
+	return test, nil
 }
 
 func getGradingScript(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) string {
