@@ -2,7 +2,6 @@ package tests
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -69,7 +68,6 @@ func gradeTest(r *http.Request, logger *log.Logger, session neo4j.Session, path 
 	if err != nil {
 		return http.StatusBadRequest, helpers.CouldNotExtractBodyError(path, err)
 	}
-	fmt.Printf("%+v\n", test)
 
 	err = datasources.GradeTest(logger, session, path, token, test, s3Bucket, s3Region, s3Profile)
 	if err != nil {

@@ -8,57 +8,14 @@ import (
 
 	"github.com/DataDog/go-python3"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
-	"qbot_webserver/src/datasources"
 
 	"qbot_webserver/src/repositories"
 )
 
-func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, token string, test repositories.CompletedTest,
-	s3Bucket string, s3Region string, s3Profile string, path string,
+func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, test repositories.CompletedTest,
+	s3Bucket string, s3Region string, s3Profile string,
 ) {
-	query := fmt.Sprintf(`
-		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
-		WHERE p.ID = $teacherID AND t.name = '%s' 
-		RETURN t.testID 
-	`, test.Name)
-
-	testID, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
-		var result int
-
-		fmt.Printf("query: %s\n", query)
-
-		records, err := tx.Run(query, map[string]interface{}{
-			"teacherID": teacherID,
-		})
-		if err != nil {
-			return 0, err
-		}
-
-		for records.Next() {
-			record := records.Record()
-			result, err = GetIntParameterFromQuery(record, "t.testID", true, true)
-			if err != nil {
-				return 0, err
-			}
-
-			return result, nil
-		}
-
-		return 0, nil
-	})
-
-	if err != nil || testID == 0 {
-		logger.Printf("could not get test with given name: %s\n", test.Name)
-		return
-	}
-
-	testDetails, err := datasources.GetTests(session, path, token, testID.(int), EmptyStringParameter, true)
-	if err != nil || len(testDetails) != 1 {
-		logger.Printf("could not get test with given name: %s\n", test.Name)
-		return
-	}
-
-	test = testDetails[0]
+	var err error
 	attempts := 3
 	for attempts > 0 {
 		test, err = runPythonScriptToGrade(test, s3Bucket, s3Region, s3Profile)
@@ -78,7 +35,7 @@ func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, to
 		logger.Printf("grading error for test %d: could not get string from answer map: %s", test.ID, err.Error())
 	}
 
-	query = fmt.Sprintf(`
+	query := fmt.Sprintf(`
 		MATCH (s:Student {email:'%s'}), (t:Test {testID:$testID})-[tp:ADDED_BY]->(p:Teacher {ID:$teacherID})
 		MERGE (s)-[st:COMPLETED]->(t)
 		SET st.grade = $grade, st.timestamp = $timestamp, st.gradedTestImage = $gradedTestImage,

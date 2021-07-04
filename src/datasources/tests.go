@@ -98,10 +98,61 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 	if err != nil || tokenInfo.Label != repositories.TeacherLabel {
 		return helpers.InvalidTokenError(path, err)
 	}
+	testDetails, err := GetTestDetails(session, path, token, test.Name, tokenInfo.ID)
+	if err != nil {
+		return err
+	}
+	testDetails.TestImageURL = test.TestImageURL
 
-	go helpers.GradeTestImage(logger, session, tokenInfo.ID, token, test, s3Bucket, s3Region, s3Profile, path)
+	fmt.Printf("%+v\n", testDetails)
+
+	go helpers.GradeTestImage(logger, session, tokenInfo.ID, testDetails, s3Bucket, s3Region, s3Profile)
 
 	return nil
+}
+
+func GetTestDetails(session neo4j.Session, path string, token string, testName string, teacherID int) (repositories.CompletedTest, error) {
+	query := fmt.Sprintf(`
+		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
+		WHERE p.ID = $teacherID AND t.name = '%s' 
+		RETURN t.testID 
+	`, testName)
+
+	testID, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
+		var result int
+
+		fmt.Printf("query: %s\n", query)
+
+		records, err := tx.Run(query, map[string]interface{}{
+			"teacherID": teacherID,
+		})
+		if err != nil {
+			return 0, err
+		}
+
+		for records.Next() {
+			record := records.Record()
+			result, err = helpers.GetIntParameterFromQuery(record, "t.testID", true, true)
+			if err != nil {
+				return 0, err
+			}
+
+			return result, nil
+		}
+
+		return 0, nil
+	})
+
+	if err != nil || testID == 0 {
+		return repositories.CompletedTest{}, fmt.Errorf("could not get test with given name: %s\n", testName)
+	}
+
+	testDetails, err := GetTests(session, path, token, testID.(int), helpers.EmptyStringParameter, true)
+	if err != nil || len(testDetails) != 1 {
+		return repositories.CompletedTest{}, fmt.Errorf("could not get test with given name: %s\n", testName)
+	}
+
+	return testDetails[0], nil
 }
 
 func AddTest(session neo4j.Session, path string, token string, test repositories.Test, s3Bucket string, s3Region string, s3Profile string, logger *log.Logger) (int, error) {
