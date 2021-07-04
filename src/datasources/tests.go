@@ -99,7 +99,7 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 		return helpers.InvalidTokenError(path, err)
 	}
 
-	go helpers.GradeTestImage(logger, session, tokenInfo.ID, test, s3Bucket, s3Region, s3Profile)
+	go helpers.GradeTestImage(logger, session, tokenInfo.ID, token, test, s3Bucket, s3Region, s3Profile, path)
 
 	return nil
 }
