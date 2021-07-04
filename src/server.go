@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/go-python3"
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"qbot_webserver/src/handlers/users"
 
@@ -155,6 +156,7 @@ func main() {
 	}
 
 	hs := setup(logger, driver, s3Bucket, s3Region, s3Profile)
+	defer python3.Py_Finalize()
 
 	logger.Printf("Listening on http://localhost%s\n", hs.Addr)
 	go func() {

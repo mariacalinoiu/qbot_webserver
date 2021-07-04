@@ -57,8 +57,9 @@ func GradeTestImage(logger *log.Logger, session neo4j.Session, teacherID int, te
 }
 
 func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) (repositories.CompletedTest, error) {
-	defer python3.Py_Finalize()
-	python3.Py_Initialize()
+	if !python3.Py_IsInitialized() {
+		python3.Py_Initialize()
+	}
 	python3.PyRun_SimpleString(getGradingScript(
 		test, s3Bucket, s3Region, s3Profile,
 	))
