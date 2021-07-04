@@ -104,8 +104,6 @@ func GradeTest(logger *log.Logger, session neo4j.Session, path string, token str
 	}
 	testDetails.TestImageURL = test.TestImageURL
 
-	fmt.Printf("%+v\n", testDetails)
-
 	go helpers.GradeTestImage(logger, session, tokenInfo.ID, testDetails, s3Bucket, s3Region, s3Profile)
 
 	return nil
@@ -281,15 +279,12 @@ func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, search
 	extraConditionSearch := ""
 	if searchString != helpers.EmptyStringParameter {
 		extraConditionSearch = fmt.Sprintf(`
-			CALL db.index.fulltext.queryNodes('subjects', '%s~')
+			CALL db.index.fulltext.queryNodes('testsAndSubjects', '%s~')
 			YIELD node, score
-			WITH collect({name:node.name}) as rows
-			CALL db.index.fulltext.queryNodes('tests', '%s~')
-			YIELD node, score
-			WITH rows + collect({name:node.name}) as allRows
-			UNWIND allRows as row
-			with distinct(row.name) as name
-		`, searchString, searchString)
+			WITH collect({name:node.name}) AS rows
+			UNWIND rows AS row
+			WITH distinct(row.name) AS name
+		`, searchString)
 
 		extraCondition = "AND (subj.name = name OR t.name = name)"
 	} else if subject != helpers.EmptyStringParameter {
@@ -343,22 +338,20 @@ func getAllTestsForTeacher(session neo4j.Session, teacherID int, searchString st
 	extraConditionSearch := ""
 	if searchString != helpers.EmptyStringParameter {
 		extraConditionSearch = fmt.Sprintf(`
-			CALL db.index.fulltext.queryNodes('subjects', '%s~')
+			CALL db.index.fulltext.queryNodes('testsAndSubjects', '%s~')
 			YIELD node, score
-			WITH collect({name:node.name}) as rows
-			CALL db.index.fulltext.queryNodes('tests', '%s~')
-			YIELD node, score
-			WITH rows + collect({name:node.name}) as allRows
-			UNWIND allRows as row
-			with distinct(row.name) as name
-		`, searchString, searchString)
+			WITH collect({name:node.name}) AS rows
+			UNWIND rows AS row
+			WITH distinct(row.name) AS name
+		`, searchString)
 
 		extraCondition = "AND (subj.name = name OR t.name = name)"
 	}
 
 	query := fmt.Sprintf(` %s 
-		MATCH (t:Test)-[ts:BELONGS_TO]->(subj:Subject), (t:Test)-[tp:ADDED_BY]->(p:Teacher) 
-		OPTIONAL MATCH (Student)-[st:COMPLETED]->(t:Test) 
+		MATCH (p:Teacher)<-[tp:ADDED_BY]-(t:Test)-[ts:BELONGS_TO]->(subj:Subject) 
+			OPTIONAL MATCH (Student)-[st:COMPLETED]->(t:Test) 
+		WITH p, tp, t, ts, subj, st 
 		WHERE p.ID = $teacherID %s
 		RETURN t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 

@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -79,12 +80,13 @@ func getTests(r *http.Request, session neo4j.Session, path string) ([]byte, int,
 	if err != nil {
 		return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 	}
-	if searchString != helpers.EmptyStringParameter {
+	if searchString == helpers.EmptyStringParameter {
 		searchString, err = helpers.GetStringParameter(r, repositories.Subject, false)
 		if err != nil {
 			return nil, http.StatusBadRequest, helpers.BadParameterError(path, err)
 		}
 	}
+	fmt.Printf("%s\n", searchString)
 
 	tests, err := datasources.GetTests(session, path, token, testID, searchString, false)
 	if err != nil {
