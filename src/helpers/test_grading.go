@@ -543,14 +543,14 @@ def find_rotated_perspective_answers(image_url, template_url, correct_answers, n
 
 
 student_email, answers, grade, percentage, graded_image_link = find_rotated_perspective_answers(
-	"%s", "%s", %v, %d, %d, %s, %s, %d, %d, "%s", "%s", "%s"
+	"%s", "%s", %v, %d, %d, %s, %s, %d, %d, "%s", "%s", "%s", False
 )
 
-#print(student_email)
-#print(answers)
-#print(grade)
-#print(percentage)
-#print(graded_image_link)
+print(student_email)
+print(answers)
+print(grade)
+print(percentage)
+print(graded_image_link)
 
 	`, test.TestImageURL,
 		test.Test.TemplateImageURL,
