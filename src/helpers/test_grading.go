@@ -422,7 +422,7 @@ def find_rotated_perspective_answers(image_url, template_url, correct_answers, n
 
 	orb = cv.ORB_create(nfeatures=1000000)
 	bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=True)
-	normalize_kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (100, 100))
+	normalize_kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
 
 	left_image, right_image, student_email_area = get_tables(current_image, template, orb, bf, normalize_kernel)
 
