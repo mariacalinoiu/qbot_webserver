@@ -408,7 +408,7 @@ def detect_email(image, s3_profile):
 
     email = json.dumps(response)
     email = re.findall(r'[\w\. -]+@[\w\. -]+', email)[0]
-    email = email.strip().translate(str.maketrans('', '', string.whitespace)).lower()
+    email = email.strip().translate(str.maketrans('', '', string.whitespace)).lower().split("@")[0]
 
     return email + "@stud.ase.ro"
 
