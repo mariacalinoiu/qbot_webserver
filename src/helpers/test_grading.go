@@ -266,7 +266,7 @@ def find_table(grayscale_image, threshold_mean_difference, threshold_min_differe
                 else:
                     choice = -1
 
-            answers.append(choice_nr_to_answer(choice))
+            answers.append([choice_nr_to_answer(choice)])
 
             if choice != -1:
                 cv.rectangle(color_image, complete_choice[2], complete_choice[3], color=(0, 200, 0),
