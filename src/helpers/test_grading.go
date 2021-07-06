@@ -60,6 +60,7 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	if !python3.Py_IsInitialized() {
 		python3.Py_Initialize()
 	}
+	fmt.Printf("%+v\n", test)
 	python3.PyRun_SimpleString(getGradingScript(
 		test, s3Bucket, s3Region, s3Profile,
 	))
