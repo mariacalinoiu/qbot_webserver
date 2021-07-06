@@ -300,7 +300,7 @@ func getAllCompletedTestsForStudent(session neo4j.Session, studentID int, search
 				t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
 					p.ID, p.email, p.firstName, p.lastName, 
-				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback
+				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback, st.answers 
 	`, extraConditionSearch, extraCondition)
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
@@ -438,7 +438,7 @@ func getAllCompletedTestsForTeacher(session neo4j.Session, testID int) ([]reposi
 				t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
 					p.ID, p.email, p.firstName, p.lastName, 
-				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback
+				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback, st.answers 
 	`
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
@@ -489,7 +489,7 @@ func getNotificationsCompletedTests(session neo4j.Session, tokenInfo repositorie
 				t.testID, subj.name, t.name, t.nrQuestions, t.nrAnswers, t.points, t.exOfficio, t.multipleAnswersAllowed, 
 					t.enablePartialScoring, t.mandatoryToPass, t.template, count(st) as nrTestsGraded, t.answers, 
 					p.ID, p.email, p.firstName, p.lastName, 
-				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback
+				st.testImage, st.gradedTestImage, st.grade, st.timestamp, st.correctedGrade, st.correctedGradeTimestamp, st.notificationMessage, st.feedback, st.answers 
 	`, nodePrefix, messagesString)
 
 	testResults, err := session.ReadTransaction(func(tx neo4j.Transaction) (interface{}, error) {
@@ -564,6 +564,14 @@ func getCompletedTestFromTestQuery(record neo4j.Record) (repositories.CompletedT
 	if err != nil {
 		return repositories.CompletedTest{}, err
 	}
+	answers, err := helpers.GetStringParameterFromQuery(record, "st.answers", true, false)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
+	mapAnswers, err := helpers.GetAnswerMapFromNeo4jString(answers)
+	if err != nil {
+		return repositories.CompletedTest{}, err
+	}
 
 	return repositories.CompletedTest{
 		Test:                    test,
@@ -576,6 +584,7 @@ func getCompletedTestFromTestQuery(record neo4j.Record) (repositories.CompletedT
 		NotificationMessage:     notification,
 		Feedback:                feedback,
 		Author:                  student,
+		Answers:                 mapAnswers,
 	}, nil
 }
 
