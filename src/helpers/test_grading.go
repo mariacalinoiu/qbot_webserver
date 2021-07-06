@@ -118,8 +118,10 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 func getGradingScript(test repositories.CompletedTest, s3Bucket string, s3Region string, s3Profile string) string {
 	return fmt.Sprintf(`
 
+import json
 import math
 import os
+import re
 import string
 
 import boto3
@@ -391,6 +393,23 @@ def send_image_to_s3(image_url, table_left, table_right, s3_bucket, s3_region, s
     return '%%s/%%s/%%s' %% (client.meta.endpoint_url, s3_bucket, s3_graded_image_path)
 
 
+def detect_email(image, s3_profile):
+    session = boto3.Session(profile_name=s3_profile)
+    client = session.client('textract')
+
+    is_success, im_buf_arr = cv.imencode(".jpg", image)
+    byte_im = im_buf_arr.tobytes()
+
+    response = client.detect_document_text(Document={
+        'Bytes': byte_im,
+    })
+
+    email = json.dumps(response)
+    email = re.findall(r'[\w\.-]+@[\w\.-]+', email)[0]
+
+    return email
+
+
 def get_student_email(student_email_area):
     # pipeline = keras_ocr.pipeline.Pipeline()
     # text = pipeline.recognize(student_email_area)
@@ -534,7 +553,8 @@ def find_rotated_perspective_answers(image_url, template_url, correct_answers, n
                                             multiple_answers)
     all_answers = answers_left + answers_right
 
-    student_email = get_student_email(student_email_area)
+    # student_email = get_student_email(student_email_area)
+    student_email = detect_email(student_email_area, s3_profile)
     graded_image_link = send_image_to_s3(image_url, table_left, table_right, s3_bucket, s3_region, s3_profile)
     grade, percentage = calculate_grade(all_answers, correct_answers, multiple_answers, partial_scoring, total_points,
                                         ex_officio)
