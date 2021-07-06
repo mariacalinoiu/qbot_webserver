@@ -60,7 +60,6 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 	if !python3.Py_IsInitialized() {
 		python3.Py_Initialize()
 	}
-	fmt.Printf("%+v\n", test)
 	python3.PyRun_SimpleString(getGradingScript(
 		test, s3Bucket, s3Region, s3Profile,
 	))
@@ -104,7 +103,6 @@ func runPythonScriptToGrade(test repositories.CompletedTest, s3Bucket string, s3
 		return test, fmt.Errorf("grading error for test %d: could not retrieve answers\n", test.ID)
 	} else {
 		retString := python3.PyUnicode_AsUTF8(answers)
-		fmt.Printf("%+v\n", retString)
 		answerMap, err := GetAnswerMapFromPythonString(retString)
 		if err != nil {
 			return test, fmt.Errorf("grading error for test %d: could not convert answers: %s\n", test.ID, err.Error())
