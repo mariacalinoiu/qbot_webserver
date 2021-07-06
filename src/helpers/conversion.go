@@ -32,6 +32,8 @@ func GetAnswerMapFromNeo4jString(stringAnswers string) (map[int][]string, error)
 
 func GetAnswerMapFromPythonString(stringAnswers string) (map[int][]string, error) {
 	stringAnswers = strings.ReplaceAll(stringAnswers, ` `, ``)
+	stringAnswers = strings.ReplaceAll(stringAnswers, `"`, ``)
+	stringAnswers = strings.ReplaceAll(stringAnswers, "`", `"`)
 	stringAnswers = strings.ReplaceAll(stringAnswers, `'`, `"`)
 	var answers [][]string
 	err := json.Unmarshal([]byte(stringAnswers), &answers)
